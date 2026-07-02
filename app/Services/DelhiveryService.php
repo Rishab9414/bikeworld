@@ -1,0 +1,413 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Order;
+use App\Models\Shipment;
+use App\Models\ShipmentTracking;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+class DelhiveryService
+{
+    public function __construct(
+        private OrderService $orderService,
+        private NotificationService $notifications,
+    ) {}
+
+    public function createShipment(Order $order): Shipment
+    {
+        if ($order->shipment) {
+            return $order->shipment;
+        }
+
+        $payload = $this->buildShipmentPayload($order);
+        $response = $this->request('POST', '/api/cmu/create.json', $payload, asForm: true);
+        $data = $this->parseCreateResponse($response);
+
+        $shipment = Shipment::create([
+            'order_id' => $order->id,
+            'courier_name' => 'Delhivery',
+            'shipment_id' => $data['shipment_id'],
+            'waybill' => $data['waybill'],
+            'tracking_number' => $data['waybill'],
+            'tracking_url' => $data['tracking_url'],
+            'shipment_status' => 'created',
+            'estimated_delivery' => now()->addDays(5)->toDateString(),
+            'shipping_cost' => $order->shipping_charge,
+        ]);
+
+        $order->update([
+            'shipment_id' => $shipment->id,
+            'status' => 'shipment_created',
+            'expected_delivery' => $shipment->estimated_delivery,
+        ]);
+
+        $this->recordTracking($shipment, 'created', 'Shipment created', 'Delhivery');
+        $this->orderService->logStatus($order, 'shipment_created', 'Shipment Created', "AWB: {$data['waybill']}", 'admin');
+        $this->notifications->notifyOrderEvent($order->fresh(), 'shipment_created');
+
+        return $shipment;
+    }
+
+    public function generateLabel(Shipment $shipment): string
+    {
+        if ($shipment->shipping_label && Storage::disk('public')->exists($shipment->shipping_label)) {
+            return $shipment->shipping_label;
+        }
+
+        if ($this->isMock()) {
+            $path = $this->storeMockLabel($shipment);
+            $shipment->update(['shipping_label' => $path]);
+
+            return $path;
+        }
+
+        $response = $this->request('GET', '/api/p/packing_slip', [
+            'wbns' => $shipment->waybill,
+            'pdf' => true,
+        ]);
+
+        $path = 'labels/'.$shipment->waybill.'.pdf';
+        Storage::disk('public')->put($path, $response->body());
+        $shipment->update(['shipping_label' => $path]);
+
+        return $path;
+    }
+
+    public function schedulePickup(Shipment $shipment): Shipment
+    {
+        $payload = [
+            'pickup_time' => now()->addDay()->format('H:i:s'),
+            'pickup_date' => now()->addDay()->format('Y-m-d'),
+            'pickup_location' => config('delhivery.pickup_location'),
+            'expected_package_count' => 1,
+        ];
+
+        $response = $this->request('POST', '/fm/request/new/', $payload);
+        $pickupId = $response->json('pickup_id') ?? $response->json('data.pickup_id') ?? 'PU-'.Str::random(8);
+
+        $shipment->update([
+            'pickup_request_id' => $pickupId,
+            'pickup_date' => now()->addDay()->toDateString(),
+            'shipment_status' => 'pickup_scheduled',
+        ]);
+
+        $order = $shipment->order;
+        $order->update(['status' => 'pickup_scheduled']);
+        $this->orderService->logStatus($order, 'pickup_scheduled', 'Pickup Scheduled', "Pickup ID: {$pickupId}", 'admin');
+
+        return $shipment->fresh();
+    }
+
+    public function cancelShipment(Shipment $shipment): Shipment
+    {
+        if (! $this->isMock()) {
+            $this->request('POST', '/api/p/edit', [
+                'waybill' => $shipment->waybill,
+                'cancellation' => true,
+            ], asForm: true);
+        }
+
+        $shipment->update(['shipment_status' => 'cancelled']);
+        $this->recordTracking($shipment, 'cancelled', 'Shipment cancelled');
+
+        return $shipment->fresh();
+    }
+
+    public function trackShipment(Shipment $shipment): array
+    {
+        if ($this->isMock()) {
+            return ['status' => $shipment->shipment_status, 'scans' => []];
+        }
+
+        $response = $this->request('GET', '/api/v1/packages/json/', [
+            'waybill' => $shipment->waybill,
+            'verbose' => 2,
+        ]);
+
+        return $response->json() ?? [];
+    }
+
+    public function syncTracking(Shipment $shipment): void
+    {
+        $data = $this->trackShipment($shipment);
+        $status = strtolower($data['ShipmentData'][0]['Shipment']['Status']['Status'] ?? $shipment->shipment_status);
+        $this->applyShipmentStatus($shipment, $status, 'Tracking sync');
+    }
+
+    public function checkPincode(string $pincode): array
+    {
+        $pincode = preg_replace('/\D/', '', $pincode);
+
+        if (strlen($pincode) !== 6) {
+            return [
+                'success' => false,
+                'serviceable' => false,
+                'pincode' => $pincode,
+                'message' => 'Please enter a valid 6-digit pincode.',
+            ];
+        }
+
+        if ($this->isMock()) {
+            return $this->mockPincodeCheck($pincode);
+        }
+
+        $response = $this->request('GET', '/c/api/pin-codes/json/', ['filter_codes' => $pincode]);
+        $codes = $response->json('delivery_codes') ?? [];
+
+        if (empty($codes)) {
+            return [
+                'success' => true,
+                'serviceable' => false,
+                'pincode' => $pincode,
+                'message' => 'Sorry, we do not deliver to this pincode yet.',
+            ];
+        }
+
+        $first = $codes[0];
+        $eta = $this->fetchExpectedTat($pincode);
+
+        return [
+            'success' => true,
+            'serviceable' => true,
+            'pincode' => $pincode,
+            'city' => $first['city'] ?? null,
+            'state' => $first['state_code'] ?? $first['state'] ?? null,
+            'district' => $first['district'] ?? null,
+            'cod_available' => filter_var($first['cod'] ?? 'Y', FILTER_VALIDATE_BOOLEAN) || ($first['cod'] ?? 'Y') === 'Y',
+            'prepaid_available' => true,
+            'estimated_delivery_days' => $eta['days'],
+            'estimated_delivery_date' => $eta['date'],
+            'message' => $eta['message'],
+        ];
+    }
+
+    public function handleWebhook(array $payload): void
+    {
+        $waybill = $payload['waybill'] ?? $payload['AWB'] ?? null;
+        $status = strtolower($payload['status'] ?? $payload['ShipmentStatus'] ?? '');
+
+        if (! $waybill) {
+            return;
+        }
+
+        $shipment = Shipment::where('waybill', $waybill)->first();
+        if (! $shipment) {
+            Log::warning('Delhivery webhook: unknown waybill', $payload);
+
+            return;
+        }
+
+        $location = $payload['location'] ?? $payload['city'] ?? null;
+        $remarks = $payload['remarks'] ?? $payload['instructions'] ?? null;
+        $scanTime = $payload['scan_time'] ?? $payload['timestamp'] ?? now();
+
+        $this->recordTracking($shipment, $status, $remarks, $location, $scanTime);
+        $this->applyShipmentStatus($shipment, $status, $remarks);
+    }
+
+    public function applyShipmentStatus(Shipment $shipment, string $rawStatus, ?string $remarks = null): void
+    {
+        $map = [
+            'picked' => 'picked_up',
+            'picked_up' => 'picked_up',
+            'in transit' => 'in_transit',
+            'in_transit' => 'in_transit',
+            'dispatched' => 'in_transit',
+            'reached destination' => 'reached_destination_hub',
+            'reached_destination_hub' => 'reached_destination_hub',
+            'out for delivery' => 'out_for_delivery',
+            'out_for_delivery' => 'out_for_delivery',
+            'delivered' => 'delivered',
+            'created' => 'shipment_created',
+        ];
+
+        $normalized = $map[$rawStatus] ?? str_replace(' ', '_', $rawStatus);
+        $shipment->update(['shipment_status' => $normalized]);
+
+        $order = $shipment->order;
+        $orderStatus = in_array($normalized, Order::STATUSES) ? $normalized : $order->status;
+
+        if ($normalized === 'delivered') {
+            $orderStatus = 'delivered';
+        }
+
+        $order->update(['status' => $orderStatus]);
+        $this->orderService->logStatus($order, $orderStatus, ucwords(str_replace('_', ' ', $normalized)), $remarks, 'delhivery');
+
+        $eventMap = [
+            'picked_up' => 'pickup_completed',
+            'in_transit' => 'shipped',
+            'out_for_delivery' => 'out_for_delivery',
+            'delivered' => 'delivered',
+        ];
+
+        if (isset($eventMap[$normalized])) {
+            $this->notifications->notifyOrderEvent($order, $eventMap[$normalized]);
+        }
+
+        if ($normalized === 'delivered') {
+            $order->update(['status' => 'completed']);
+            $this->orderService->logStatus($order, 'completed', 'Order Completed', null, 'system');
+        }
+    }
+
+    private function recordTracking(Shipment $shipment, string $status, ?string $remarks = null, ?string $location = null, $scanTime = null): void
+    {
+        ShipmentTracking::create([
+            'shipment_id' => $shipment->id,
+            'status' => $status,
+            'location' => $location,
+            'remarks' => $remarks,
+            'scan_time' => $scanTime ? \Carbon\Carbon::parse($scanTime) : now(),
+        ]);
+    }
+
+    private function buildShipmentPayload(Order $order): array
+    {
+        $addr = $order->shipping_address_json ?? [];
+        $weight = $order->items->sum(fn ($i) => ($i->weight ?? 0.5) * $i->quantity) ?: config('delhivery.default_weight_kg');
+        $paymentMode = $order->payment_method === 'cod' ? 'COD' : 'Prepaid';
+
+        return [
+            'format' => 'json',
+            'data' => json_encode([
+                'shipments' => [[
+                    'name' => $addr['name'] ?? $order->customer?->full_name ?? 'Customer',
+                    'add' => $addr['line_1'] ?? $order->shipping_address,
+                    'pin' => $addr['pincode'] ?? config('delhivery.pickup_pin'),
+                    'city' => $addr['city'] ?? config('delhivery.pickup_city'),
+                    'state' => $addr['state'] ?? config('delhivery.pickup_state'),
+                    'country' => 'India',
+                    'phone' => $addr['phone'] ?? $order->customer?->mobile ?? config('delhivery.pickup_phone'),
+                    'order' => $order->order_number,
+                    'payment_mode' => $paymentMode,
+                    'cod_amount' => $paymentMode === 'COD' ? $order->displayTotal() : 0,
+                    'total_amount' => $order->displayTotal(),
+                    'quantity' => $order->items->sum('quantity'),
+                    'weight' => max(0.1, $weight),
+                ]],
+                'pickup_location' => ['name' => config('delhivery.pickup_location')],
+            ]),
+        ];
+    }
+
+    private function parseCreateResponse($response): array
+    {
+        if ($this->isMock()) {
+            $waybill = 'DL'.rand(1000000000, 9999999999);
+
+            return [
+                'shipment_id' => 'DLV-'.Str::upper(Str::random(10)),
+                'waybill' => $waybill,
+                'tracking_url' => "https://www.delhivery.com/track/package/{$waybill}",
+            ];
+        }
+
+        $json = $response->json();
+        $pkg = $json['packages'][0] ?? $json['package'][0] ?? [];
+
+        return [
+            'shipment_id' => $pkg['refnum'] ?? $json['shipment_id'] ?? null,
+            'waybill' => $pkg['waybill'] ?? $json['waybill'] ?? null,
+            'tracking_url' => isset($pkg['waybill']) ? "https://www.delhivery.com/track/package/{$pkg['waybill']}" : null,
+        ];
+    }
+
+    private function storeMockLabel(Shipment $shipment): string
+    {
+        $html = view('admin.orders.shipping-label', ['shipment' => $shipment, 'order' => $shipment->order])->render();
+        $path = 'labels/'.$shipment->waybill.'.html';
+        Storage::disk('public')->put($path, $html);
+
+        return $path;
+    }
+
+    private function request(string $method, string $path, array $data = [], bool $asForm = false)
+    {
+        if ($this->isMock()) {
+            return new \Illuminate\Http\Client\Response(
+                new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true, 'mock' => true]))
+            );
+        }
+
+        $url = rtrim(config('delhivery.base_url'), '/').$path;
+        $http = Http::withHeaders([
+            'Authorization' => 'Token '.config('delhivery.api_token'),
+            'Accept' => 'application/json',
+        ])->timeout(30);
+
+        return $asForm
+            ? $http->asForm()->$method($url, $data)
+            : $http->$method($url, $data);
+    }
+
+    private function isMock(): bool
+    {
+        return (bool) config('delhivery.mock', true) || empty(config('delhivery.api_token'));
+    }
+
+    private function mockPincodeCheck(string $pincode): array
+    {
+        if (str_starts_with($pincode, '000')) {
+            return [
+                'success' => true,
+                'serviceable' => false,
+                'pincode' => $pincode,
+                'message' => 'Delivery is not available for this pincode.',
+                'mock' => true,
+            ];
+        }
+
+        $origin = (string) config('delhivery.pickup_pin', '400069');
+        $distance = abs((int) substr($pincode, 0, 3) - (int) substr($origin, 0, 3));
+        $days = min(7, max(2, 2 + (int) floor($distance / 50)));
+        $maxDays = $days + 1;
+
+        return [
+            'success' => true,
+            'serviceable' => true,
+            'pincode' => $pincode,
+            'city' => 'Serviceable Area',
+            'state' => config('delhivery.pickup_state', 'Maharashtra'),
+            'cod_available' => true,
+            'prepaid_available' => true,
+            'estimated_delivery_days' => $days,
+            'estimated_delivery_date' => now()->addDays($days)->format('d M Y'),
+            'message' => "Estimated delivery in {$days}–{$maxDays} business days",
+            'mock' => true,
+        ];
+    }
+
+    private function fetchExpectedTat(string $destinationPin): array
+    {
+        $origin = (string) config('delhivery.pickup_pin', '400069');
+
+        try {
+            $response = $this->request('GET', '/api/dc/expected_tat', [
+                'origin_pin' => $origin,
+                'destination_pin' => $destinationPin,
+                'mot' => 'S',
+                'pdt' => 'Prepaid',
+            ]);
+
+            $days = (int) ($response->json('data.tat')
+                ?? $response->json('tat')
+                ?? $response->json('expected_tat')
+                ?? 5);
+        } catch (\Throwable) {
+            $days = 5;
+        }
+
+        $days = max(2, min(10, $days));
+
+        return [
+            'days' => $days,
+            'date' => now()->addDays($days)->format('d M Y'),
+            'message' => "Estimated delivery in {$days}–".($days + 1).' business days',
+        ];
+    }
+}

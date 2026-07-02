@@ -1,0 +1,106 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\CartItem;
+use App\Models\Product;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+
+class CartService
+{
+    public function items(): Collection
+    {
+        return $this->query()->with(['product.category', 'product.tax'])->get();
+    }
+
+    public function count(): int
+    {
+        return (int) $this->query()->sum('quantity');
+    }
+
+    public function subtotal(): float
+    {
+        return $this->items()->sum(fn (CartItem $item) => $item->subtotal());
+    }
+
+    public function add(Product $product, int $quantity = 1): void
+    {
+        $item = $this->query()->where('product_id', $product->id)->first();
+
+        if ($item) {
+            $item->update([
+                'quantity' => min($item->quantity + $quantity, $product->stock),
+            ]);
+
+            return;
+        }
+
+        CartItem::create([
+            'user_id' => Auth::id(),
+            'session_id' => Auth::check() ? null : session()->getId(),
+            'product_id' => $product->id,
+            'quantity' => min($quantity, $product->stock),
+        ]);
+    }
+
+    public function update(CartItem $item, int $quantity): void
+    {
+        if ($quantity <= 0) {
+            $item->delete();
+
+            return;
+        }
+
+        $item->update([
+            'quantity' => min($quantity, $item->product->stock),
+        ]);
+    }
+
+    public function remove(CartItem $item): void
+    {
+        $item->delete();
+    }
+
+    public function clear(): void
+    {
+        $this->query()->delete();
+    }
+
+    public function mergeGuestCart(int $userId): void
+    {
+        $sessionId = session()->getId();
+
+        CartItem::where('session_id', $sessionId)
+            ->whereNull('user_id')
+            ->each(function (CartItem $guestItem) use ($userId) {
+                $existing = CartItem::where('user_id', $userId)
+                    ->where('product_id', $guestItem->product_id)
+                    ->first();
+
+                if ($existing) {
+                    $existing->update([
+                        'quantity' => min(
+                            $existing->quantity + $guestItem->quantity,
+                            $guestItem->product->stock
+                        ),
+                    ]);
+                    $guestItem->delete();
+                } else {
+                    $guestItem->update([
+                        'user_id' => $userId,
+                        'session_id' => null,
+                    ]);
+                }
+            });
+    }
+
+    private function query()
+    {
+        if (Auth::check()) {
+            return CartItem::where('user_id', Auth::id());
+        }
+
+        return CartItem::where('session_id', session()->getId())->whereNull('user_id');
+    }
+}
