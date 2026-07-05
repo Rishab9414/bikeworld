@@ -7,6 +7,7 @@ use App\Services\ActivityLogger;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -46,6 +47,31 @@ abstract class AjaxMasterController extends Controller
     protected function beforeStore(array &$data): void {}
 
     protected function beforeUpdate(array &$data, Model $record): void {}
+
+    /** @return array<string, string> Form file input name => database column */
+    protected function fileFields(): array
+    {
+        return [];
+    }
+
+    protected function uploadDirectory(): string
+    {
+        return str_replace('-', '_', $this->moduleName());
+    }
+
+    protected function handleFileUploads(Request $request, array &$data, ?Model $record = null): void
+    {
+        foreach ($this->fileFields() as $fileKey => $column) {
+            if ($request->hasFile($fileKey)) {
+                $existing = $record?->{$column};
+                if ($existing && ! str_starts_with($existing, 'http')) {
+                    Storage::disk('public')->delete($existing);
+                }
+                $data[$column] = $request->file($fileKey)->store($this->uploadDirectory(), 'public');
+            }
+            unset($data[$fileKey]);
+        }
+    }
 
     public function index(): View
     {
@@ -95,6 +121,7 @@ abstract class AjaxMasterController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate($this->validationRules());
+        $this->handleFileUploads($request, $data);
         $this->beforeStore($data);
 
         $record = $this->modelClass()::create($data);
@@ -112,6 +139,7 @@ abstract class AjaxMasterController extends Controller
     {
         $record = $this->findOrFail($id);
         $data = $request->validate($this->validationRules($id));
+        $this->handleFileUploads($request, $data, $record);
         $this->beforeUpdate($data, $record);
 
         $record->update($data);
@@ -128,6 +156,7 @@ abstract class AjaxMasterController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $record = $this->findOrFail($id);
+        $this->deleteUploadedFiles($record);
         $record->delete();
 
         ActivityLogger::log('deleted', $this->moduleName(), null, "Deleted {$this->moduleName()} #{$id}");
@@ -156,5 +185,15 @@ abstract class AjaxMasterController extends Controller
     protected function findOrFail(int $id): Model
     {
         return $this->modelClass()::with($this->withRelations())->findOrFail($id);
+    }
+
+    protected function deleteUploadedFiles(Model $record): void
+    {
+        foreach (array_values($this->fileFields()) as $column) {
+            $path = $record->{$column};
+            if ($path && ! str_starts_with($path, 'http')) {
+                Storage::disk('public')->delete($path);
+            }
+        }
     }
 }

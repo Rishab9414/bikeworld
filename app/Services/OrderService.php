@@ -19,6 +19,7 @@ class OrderService
         private PaymentService $payment,
         private NotificationService $notifications,
         private TaxService $tax,
+        private CouponService $coupons,
     ) {}
 
     public function createFromCart(
@@ -37,9 +38,11 @@ class OrderService
             $subtotal = $taxSummary['subtotal'];
             $tax = $taxSummary['tax_amount'];
             $itemsTotal = $cartItems->sum(fn ($i) => $i->subtotal());
-            $shipping = (float) ($data['shipping_charge'] ?? ($itemsTotal >= 2000 ? 0 : 99));
-            $discount = (float) ($data['discount'] ?? 0);
-            $grandTotal = max(0, $taxSummary['items_total'] - $discount + $shipping);
+            $shipping = (float) ($data['shipping_charge'] ?? config('delhivery.default_shipping_charge', 99));
+            $couponDiscount = (float) ($data['coupon_discount'] ?? 0);
+            $coupon = $data['coupon'] ?? null;
+            $discount = $couponDiscount + (float) ($data['wallet_discount'] ?? 0);
+            $grandTotal = max(0, $taxSummary['items_total'] - $couponDiscount + $shipping);
 
             $shippingText = $data['shipping_address'] ?? '';
             $billingText = $data['billing_address'] ?? $shippingText;
@@ -53,6 +56,9 @@ class OrderService
                 'status' => 'pending',
                 'subtotal' => $subtotal,
                 'discount' => $discount,
+                'coupon_id' => $coupon?->id,
+                'coupon_code' => $coupon?->code,
+                'coupon_discount' => $couponDiscount,
                 'shipping_charge' => $shipping,
                 'tax_amount' => $tax,
                 'grand_total' => $grandTotal,
@@ -90,6 +96,11 @@ class OrderService
 
             $this->payment->processCheckoutPayment($order, $paymentMethod);
             $this->logStatus($order, 'pending', 'Order Placed', 'Customer placed the order');
+
+            if ($coupon && $couponDiscount > 0) {
+                $this->coupons->recordUsage($coupon, $user, $order, $couponDiscount);
+            }
+
             $this->notifications->notifyOrderEvent($order, 'order_placed');
 
             if ($order->payment_status === 'paid') {
@@ -116,6 +127,10 @@ class OrderService
         $order->update(['status' => $status]);
         $this->logStatus($order, $status, $title, $remarks, $actor);
 
+        if ($actor === 'admin') {
+            $this->notifications->notifyAdminStatusChange($order->fresh(), $status, $title, $remarks);
+        }
+
         return $order->fresh();
     }
 
@@ -124,6 +139,7 @@ class OrderService
         $this->inventory->releaseStock($order);
         $order->update(['status' => 'cancelled']);
         $this->logStatus($order, 'cancelled', 'Order Cancelled', $reason);
+        $this->notifications->notifyOrderEvent($order, 'order_cancelled', $reason);
 
         return $order->fresh();
     }

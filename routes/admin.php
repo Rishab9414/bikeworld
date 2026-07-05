@@ -3,8 +3,10 @@
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\BannerController;
+use App\Http\Controllers\Admin\HomeReelController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\OrderController;
@@ -22,6 +24,7 @@ use App\Http\Controllers\Admin\Masters\UnitController;
 use App\Http\Controllers\Admin\Masters\VehicleBrandController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\StoreSettingsController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +37,13 @@ Route::middleware('admin.guest')->group(function () {
 Route::middleware('admin.auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    // Reports
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::get('/{type}/export', [ReportController::class, 'export'])->name('export');
+        Route::get('/{type}', [ReportController::class, 'show'])->name('show');
+    });
 
     // User Management
     Route::prefix('users')->name('users.')->group(function () {
@@ -77,6 +87,7 @@ Route::middleware('admin.auth')->group(function () {
         Route::post('/{order}/create-shipment', [OrderController::class, 'createShipment'])->name('create-shipment');
         Route::post('/{order}/create-shipment-sync', [OrderController::class, 'createShipmentSync'])->name('create-shipment-sync');
         Route::post('/{order}/generate-invoice', [OrderController::class, 'generateInvoice'])->name('generate-invoice');
+        Route::post('/{order}/generate-label', [OrderController::class, 'generateLabel'])->name('generate-label');
         Route::get('/{order}/invoice', [OrderController::class, 'printInvoice'])->name('invoice');
         Route::get('/{order}/label', [OrderController::class, 'printLabel'])->name('label');
         Route::post('/{order}/schedule-pickup', [OrderController::class, 'schedulePickup'])->name('schedule-pickup');
@@ -115,6 +126,26 @@ Route::middleware('admin.auth')->group(function () {
         Route::delete('/{banner}', [BannerController::class, 'destroy'])->name('destroy');
     });
 
+    // Homepage Reels
+    Route::prefix('home-reels')->name('home-reels.')->group(function () {
+        Route::get('/', [HomeReelController::class, 'index'])->name('index');
+        Route::get('/create', [HomeReelController::class, 'create'])->name('create');
+        Route::post('/', [HomeReelController::class, 'store'])->name('store');
+        Route::get('/{homeReel}/edit', [HomeReelController::class, 'edit'])->name('edit');
+        Route::put('/{homeReel}', [HomeReelController::class, 'update'])->name('update');
+        Route::delete('/{homeReel}', [HomeReelController::class, 'destroy'])->name('destroy');
+    });
+
+    // Coupons
+    Route::prefix('coupons')->name('coupons.')->group(function () {
+        Route::get('/', [CouponController::class, 'index'])->name('index');
+        Route::get('/create', [CouponController::class, 'create'])->name('create');
+        Route::post('/', [CouponController::class, 'store'])->name('store');
+        Route::get('/{coupon}/edit', [CouponController::class, 'edit'])->name('edit');
+        Route::put('/{coupon}', [CouponController::class, 'update'])->name('update');
+        Route::delete('/{coupon}', [CouponController::class, 'destroy'])->name('destroy');
+    });
+
     // Store Announcements (top bar + ticker)
     Route::prefix('announcements')->name('announcements.')->group(function () {
         Route::get('/', [AnnouncementController::class, 'index'])->name('index');
@@ -131,6 +162,8 @@ Route::middleware('admin.auth')->group(function () {
         Route::put('/payments', [StoreSettingsController::class, 'updatePayments'])->name('payments.update');
         Route::get('/tax', [StoreSettingsController::class, 'tax'])->name('tax');
         Route::put('/tax', [StoreSettingsController::class, 'updateTax'])->name('tax.update');
+        Route::get('/homepage', [StoreSettingsController::class, 'homepage'])->name('homepage');
+        Route::put('/homepage', [StoreSettingsController::class, 'updateHomepage'])->name('homepage.update');
     });
 
     // Products

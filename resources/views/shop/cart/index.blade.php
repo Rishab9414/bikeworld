@@ -3,7 +3,7 @@
 @section('title', 'Shopping Cart - ' . config('app.name'))
 
 @section('content')
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full max-w-full overflow-x-clip">
     <h1 class="text-3xl font-bold text-gray-900 mb-8">Shopping Cart</h1>
 
     @if($items->isEmpty())
@@ -48,23 +48,40 @@
 
             <div class="bg-white rounded-xl border border-gray-100 p-6 h-fit">
                 <h2 class="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
+                @if($taxSummary['has_exclusive_items'])
                 <div class="flex justify-between mb-2">
                     <span class="text-gray-600">Subtotal (excl. GST)</span>
                     <span class="font-semibold">@money($taxSummary['subtotal'])</span>
                 </div>
-                @if($taxSummary['tax_amount'] > 0)
+                @if($taxSummary['checkout_tax_amount'] > 0)
                 <div class="flex justify-between mb-2">
                     <span class="text-gray-600">{{ $taxLabel }}</span>
-                    <span class="font-semibold">@money($taxSummary['tax_amount'])</span>
+                    <span class="font-semibold">@money($taxSummary['checkout_tax_amount'])</span>
                 </div>
                 @endif
+                @if($taxSummary['has_inclusive_items'])
+                <p class="text-xs text-gray-500 mb-2">Some items include GST in price; others add GST at checkout.</p>
+                @endif
+                @else
                 <div class="flex justify-between mb-2">
-                    <span class="text-gray-600">Shipping</span>
-                    <span class="{{ $shippingCharge === 0 ? 'text-green-600 font-medium' : 'font-semibold' }}">{{ $shippingCharge === 0 ? 'Free' : '₹'.number_format($shippingCharge, 2) }}</span>
+                    <span class="text-gray-600">Subtotal</span>
+                    <span class="font-semibold">@money($taxSummary['items_total'])</span>
                 </div>
+                <p class="text-xs text-gray-500 mb-2">All prices include GST</p>
+                @endif
+                @if($freeShippingEnabled ?? false)
+                <div class="mb-3 rounded-lg px-3 py-2.5 text-xs {{ ($freeShippingQualified ?? false) ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200' }}">
+                    @if($freeShippingQualified ?? false)
+                        🎉 You qualify for <strong>FREE shipping</strong>!
+                    @else
+                        Add <strong>@money($freeShippingRemaining)</strong> more for free shipping on orders above @money($freeShippingMinAmount).
+                    @endif
+                </div>
+                @endif
+                <p class="text-xs text-gray-500 mt-2">Apply coupon codes at checkout. Shipping calculated at checkout based on your pincode.</p>
                 <hr class="my-4">
                 <div class="flex justify-between mb-6">
-                    <span class="text-lg font-semibold">Total</span>
+                    <span class="text-lg font-semibold">Subtotal</span>
                     <span class="text-lg font-bold">@money($grandTotal)</span>
                 </div>
                 @auth

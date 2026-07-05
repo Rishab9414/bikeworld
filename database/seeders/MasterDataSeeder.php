@@ -209,9 +209,12 @@ class MasterDataSeeder extends Seeder
         ];
 
         foreach ($brands as $brandName => $models) {
+            $slug = Str::slug($brandName);
             $brand = VehicleBrand::create([
                 'name' => $brandName,
-                'slug' => Str::slug($brandName),
+                'slug' => $slug,
+                'image' => app(\App\Services\BrandImageGenerator::class)->generate($brandName, $slug),
+                'show_in_shop' => true,
                 'status' => 'active',
             ]);
 
@@ -222,6 +225,7 @@ class MasterDataSeeder extends Seeder
                     'slug' => Str::slug($modelName),
                     'year' => '2024',
                     'engine_cc' => rand(125, 650),
+                    'show_in_shop' => true,
                     'status' => 'active',
                 ]);
             }

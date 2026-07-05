@@ -98,6 +98,7 @@ class DelhiveryService
         $order = $shipment->order;
         $order->update(['status' => 'pickup_scheduled']);
         $this->orderService->logStatus($order, 'pickup_scheduled', 'Pickup Scheduled', "Pickup ID: {$pickupId}", 'admin');
+        $this->notifications->notifyOrderEvent($order->fresh(), 'pickup_scheduled', "Pickup has been scheduled for your order. Pickup ID: {$pickupId}");
 
         return $shipment->fresh();
     }
@@ -136,6 +137,43 @@ class DelhiveryService
         $data = $this->trackShipment($shipment);
         $status = strtolower($data['ShipmentData'][0]['Shipment']['Status']['Status'] ?? $shipment->shipment_status);
         $this->applyShipmentStatus($shipment, $status, 'Tracking sync');
+    }
+
+    public function calculateShippingCost(string $destinationPin, int $weightGrams, string $paymentMode = 'Pre-paid'): array
+    {
+        $destinationPin = preg_replace('/\D/', '', $destinationPin);
+        $weightGrams = max(100, $weightGrams);
+
+        if (strlen($destinationPin) !== 6) {
+            return ['success' => false, 'message' => 'Invalid destination pincode.'];
+        }
+
+        if ($this->isMock()) {
+            return $this->mockShippingCost($destinationPin, $weightGrams);
+        }
+
+        $params = [
+            'md' => config('delhivery.shipping_mode', 'E'),
+            'cgm' => $weightGrams,
+            'o_pin' => (int) config('delhivery.pickup_pin', '400001'),
+            'd_pin' => (int) $destinationPin,
+            'ss' => 'Delivered',
+            'pt' => strtoupper($paymentMode) === 'COD' ? 'COD' : 'Pre-paid',
+        ];
+
+        if ($client = config('delhivery.client_name')) {
+            $params['cl'] = $client;
+        }
+
+        try {
+            $response = $this->request('GET', '/api/kinko/v1/invoice/charges/.json', $params);
+
+            return $this->parseShippingCostResponse($response);
+        } catch (\Throwable $e) {
+            Log::warning('Delhivery shipping cost exception', ['message' => $e->getMessage()]);
+
+            return ['success' => false, 'message' => 'Could not fetch shipping cost from Delhivery.'];
+        }
     }
 
     public function checkPincode(string $pincode): array
@@ -408,6 +446,64 @@ class DelhiveryService
             'days' => $days,
             'date' => now()->addDays($days)->format('d M Y'),
             'message' => "Estimated delivery in {$days}–".($days + 1).' business days',
+        ];
+    }
+
+    private function parseShippingCostResponse($response): array
+    {
+        if (! $response->successful()) {
+            Log::warning('Delhivery shipping cost failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return ['success' => false, 'message' => 'Delhivery shipping API returned an error.'];
+        }
+
+        $body = trim($response->body());
+        $json = json_decode($body, true);
+
+        if (is_array($json)) {
+            $row = $json[0] ?? $json['data'][0] ?? $json;
+            $amount = $row['total_amount'] ?? $row['total'] ?? $row['gross_amount'] ?? null;
+
+            if ($amount !== null && is_numeric($amount)) {
+                return [
+                    'success' => true,
+                    'amount' => (float) $amount,
+                    'raw' => $row,
+                ];
+            }
+        }
+
+        if (str_starts_with($body, '<')) {
+            try {
+                $xml = simplexml_load_string($body);
+                $amount = (float) ($xml->charge->total_amount ?? $xml->total_amount ?? 0);
+
+                if ($amount > 0) {
+                    return ['success' => true, 'amount' => $amount];
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Delhivery shipping cost XML parse failed', ['message' => $e->getMessage()]);
+            }
+        }
+
+        return ['success' => false, 'message' => 'Could not parse Delhivery shipping quote.'];
+    }
+
+    private function mockShippingCost(string $destinationPin, int $weightGrams): array
+    {
+        $origin = (string) config('delhivery.pickup_pin', '400001');
+        $distance = abs((int) substr($destinationPin, 0, 3) - (int) substr($origin, 0, 3));
+        $weightFactor = max(0, ($weightGrams - 500) / 500) * 12;
+        $distanceFactor = min(60, $distance / 8);
+        $amount = round(59 + $weightFactor + $distanceFactor, 2);
+
+        return [
+            'success' => true,
+            'amount' => max(59, $amount),
+            'mock' => true,
         ];
     }
 }

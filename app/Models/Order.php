@@ -17,7 +17,7 @@ class Order extends Model
 
     protected $fillable = [
         'user_id', 'customer_id', 'order_number', 'status', 'subtotal', 'discount',
-        'coupon_discount', 'wallet_discount', 'shipping_charge', 'tax_amount',
+        'coupon_id', 'coupon_code', 'coupon_discount', 'wallet_discount', 'shipping_charge', 'tax_amount',
         'grand_total', 'total', 'payment_method', 'payment_status',
         'razorpay_order_id', 'razorpay_payment_id', 'paid_at',
         'expected_delivery',
@@ -46,6 +46,7 @@ class Order extends Model
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
     public function customer(): BelongsTo { return $this->belongsTo(Customer::class); }
+    public function coupon(): BelongsTo { return $this->belongsTo(Coupon::class); }
     public function items(): HasMany { return $this->hasMany(OrderItem::class); }
     public function shipment(): HasOne { return $this->hasOne(Shipment::class); }
     public function shipmentRecord(): BelongsTo { return $this->belongsTo(Shipment::class, 'shipment_id'); }

@@ -4,62 +4,111 @@
 @section('page-subtitle', 'Manage orders, shipments & Delhivery tracking')
 
 @push('scripts')
-<script type="module">
-window.renderMasterRow = (row) => `<tr class="hover:bg-slate-50">
-    <td class="px-5 py-3.5 font-medium text-indigo-600">${row.order_number}</td>
-    <td class="px-5 py-3.5"><p class="font-medium text-slate-900">${row.customer_name}</p><p class="text-xs text-slate-400">${row.mobile}</p></td>
-    <td class="px-5 py-3.5 text-sm">${row.email}</td>
-    <td class="px-5 py-3.5 text-sm text-center">${row.items_count}</td>
-    <td class="px-5 py-3.5 font-semibold">₹${parseFloat(row.grand_total||0).toFixed(2)}</td>
-    <td class="px-5 py-3.5"><span class="px-2 py-0.5 text-xs font-semibold rounded-full ${row.payment_status==='paid'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${row.payment_status}</span></td>
-    <td class="px-5 py-3.5"><span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">${row.status.replace(/_/g,' ')}</span></td>
-    <td class="px-5 py-3.5 text-sm">${row.created_at}</td>
-    <td class="px-5 py-3.5 text-right"><a href="/admin/orders/${row.id}" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg inline-block">View</a></td>
-</tr>`;
+<script>
+(function () {
+    const baseUrl = @json(url('/admin/orders'));
+    const tableBody = document.getElementById('master-table-body');
+    const searchInput = document.getElementById('master-search');
+    const statusEl = document.getElementById('filter-status');
+    const payEl = document.getElementById('filter-payment-status');
+    const dateFromEl = document.getElementById('filter-date-from');
+    const dateToEl = document.getElementById('filter-date-to');
+    const paginationEl = document.getElementById('orders-pagination');
+    let currentPage = 1;
+    let debounceTimer = null;
 
-class OrderListCrud extends MasterCrud {
-    constructor(config) {
-        super(config);
-        this.applyDateFilter = false;
+    function renderRow(row) {
+        return `<tr class="hover:bg-slate-50">
+            <td class="px-5 py-3.5 font-medium text-indigo-600">${row.order_number}</td>
+            <td class="px-5 py-3.5"><p class="font-medium text-slate-900">${row.customer_name}</p><p class="text-xs text-slate-400">${row.mobile}</p></td>
+            <td class="px-5 py-3.5 text-sm">${row.email}</td>
+            <td class="px-5 py-3.5 text-sm text-center">${row.items_count}</td>
+            <td class="px-5 py-3.5 font-semibold">₹${parseFloat(row.grand_total || 0).toFixed(2)}</td>
+            <td class="px-5 py-3.5"><span class="px-2 py-0.5 text-xs font-semibold rounded-full ${row.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${row.payment_status}</span></td>
+            <td class="px-5 py-3.5"><span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">${row.status.replace(/_/g, ' ')}</span></td>
+            <td class="px-5 py-3.5 text-sm">${row.created_at}</td>
+            <td class="px-5 py-3.5 text-right"><a href="/admin/orders/${row.id}" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg inline-block">View</a></td>
+        </tr>`;
     }
 
-    async loadData() {
-        const params = new URLSearchParams();
-        if (this.searchInput?.value) params.set('search', this.searchInput.value);
-        const statusEl = document.getElementById('filter-status');
-        const payEl = document.getElementById('filter-payment-status');
+    function showLoading() {
+        tableBody.innerHTML = '<tr><td colspan="9" class="px-6 py-12 text-center text-slate-400">Loading orders...</td></tr>';
+    }
+
+    function renderPagination(meta) {
+        if (!paginationEl) return;
+        const hasPrev = meta.prev_page_url;
+        const hasNext = meta.next_page_url;
+        paginationEl.innerHTML = `
+            <div class="flex items-center justify-between px-5 py-4 border-t border-slate-100 text-sm text-slate-500">
+                <span>Page ${meta.current_page}${meta.to ? ' · showing ' + meta.from + '–' + meta.to : ''}</span>
+                <div class="flex gap-2">
+                    <button type="button" id="orders-prev" ${hasPrev ? '' : 'disabled'} class="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">Previous</button>
+                    <button type="button" id="orders-next" ${hasNext ? '' : 'disabled'} class="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">Next</button>
+                </div>
+            </div>`;
+        document.getElementById('orders-prev')?.addEventListener('click', () => { if (hasPrev) { currentPage--; loadOrders(); } });
+        document.getElementById('orders-next')?.addEventListener('click', () => { if (hasNext) { currentPage++; loadOrders(); } });
+    }
+
+    async function loadOrders() {
+        showLoading();
+        const params = new URLSearchParams({ page: String(currentPage) });
+        if (searchInput?.value.trim()) params.set('search', searchInput.value.trim());
         if (statusEl?.value) params.set('status', statusEl.value);
         if (payEl?.value) params.set('payment_status', payEl.value);
-        if (this.applyDateFilter) {
-            const from = document.getElementById('filter-date-from')?.value;
-            const to = document.getElementById('filter-date-to')?.value;
-            if (from) params.set('date_from', from);
-            if (to) params.set('date_to', to);
-        }
-        this.tableBody.innerHTML = `<tr><td colspan="9" class="px-6 py-12 text-center text-slate-400">Loading...</td></tr>`;
+        if (dateFromEl?.value) params.set('date_from', dateFromEl.value);
+        if (dateToEl?.value) params.set('date_to', dateToEl.value);
+
         try {
-            const result = await this.request(`${this.baseUrl}/data?${params}`);
-            const rows = result.data.data || result.data;
-            this.renderTable(Array.isArray(rows) ? rows : []);
+            const res = await fetch(`${baseUrl}/data?${params}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const result = await res.json();
+            const payload = result.data || {};
+            const rows = Array.isArray(payload.data) ? payload.data : (Array.isArray(payload) ? payload : []);
+
+            if (!rows.length) {
+                tableBody.innerHTML = '<tr><td colspan="9" class="px-6 py-12 text-center text-slate-400">No orders found.</td></tr>';
+            } else {
+                tableBody.innerHTML = rows.map(renderRow).join('');
+            }
+
+            renderPagination({
+                current_page: payload.current_page || 1,
+                from: payload.from,
+                to: payload.to,
+                prev_page_url: payload.prev_page_url,
+                next_page_url: payload.next_page_url,
+            });
         } catch (e) {
-            this.tableBody.innerHTML = `<tr><td colspan="9" class="px-6 py-8 text-center text-red-500">Failed to load.</td></tr>`;
+            tableBody.innerHTML = '<tr><td colspan="9" class="px-6 py-8 text-center text-red-500">Failed to load orders.</td></tr>';
         }
     }
-}
-const crud = new OrderListCrud({ baseUrl: @js(url('/admin/orders')), module: 'orders' });
-document.getElementById('apply-filters')?.addEventListener('click', () => {
-    crud.applyDateFilter = true;
-    crud.loadData();
-});
-document.getElementById('reset-filters')?.addEventListener('click', () => {
-    crud.applyDateFilter = false;
-    document.getElementById('filter-status').value = '';
-    document.getElementById('filter-payment-status').value = '';
-    document.getElementById('filter-date-from').value = new Date().toISOString().slice(0, 10);
-    document.getElementById('filter-date-to').value = new Date().toISOString().slice(0, 10);
-    if (crud.searchInput) crud.searchInput.value = '';
-    crud.loadData();
-});
+
+    function reloadFromStart() {
+        currentPage = 1;
+        loadOrders();
+    }
+
+    searchInput?.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(reloadFromStart, 350);
+    });
+    statusEl?.addEventListener('change', reloadFromStart);
+    payEl?.addEventListener('change', reloadFromStart);
+    document.getElementById('apply-filters')?.addEventListener('click', reloadFromStart);
+    document.getElementById('reset-filters')?.addEventListener('click', () => {
+        if (statusEl) statusEl.value = '';
+        if (payEl) payEl.value = '';
+        if (dateFromEl) dateFromEl.value = '';
+        if (dateToEl) dateToEl.value = '';
+        if (searchInput) searchInput.value = '';
+        reloadFromStart();
+    });
+
+    loadOrders();
+})();
 </script>
 @endpush
 
@@ -79,10 +128,12 @@ document.getElementById('reset-filters')?.addEventListener('click', () => {
             <option value="paid">Paid</option>
             <option value="refunded">Refunded</option>
         </select>
-        <input type="date" id="filter-date-from" value="{{ now()->format('Y-m-d') }}" class="admin-input text-sm py-2.5">
-        <input type="date" id="filter-date-to" value="{{ now()->format('Y-m-d') }}" class="admin-input text-sm py-2.5" title="To date">
-        <button type="button" id="apply-filters" class="bg-indigo-600 text-white text-sm font-semibold py-2.5 rounded-xl">Apply Filters</button>
-        <button type="button" id="reset-filters" class="text-sm text-slate-600 border border-slate-200 py-2.5 rounded-xl">Reset</button>
+        <input type="date" id="filter-date-from" class="admin-input text-sm py-2.5" placeholder="From date">
+        <input type="date" id="filter-date-to" class="admin-input text-sm py-2.5" title="To date">
+        <div class="flex gap-2">
+            <button type="button" id="apply-filters" class="flex-1 bg-indigo-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-indigo-700">Apply</button>
+            <button type="button" id="reset-filters" class="px-3 text-sm text-slate-600 border border-slate-200 py-2.5 rounded-xl hover:bg-slate-50">Reset</button>
+        </div>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full min-w-[1000px]">
@@ -99,9 +150,9 @@ document.getElementById('reset-filters')?.addEventListener('click', () => {
                     <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Actions</th>
                 </tr>
             </thead>
-            <tbody id="master-table-body"><tr><td colspan="9" class="px-6 py-12 text-center text-slate-400">Loading...</td></tr></tbody>
+            <tbody id="master-table-body"><tr><td colspan="9" class="px-6 py-12 text-center text-slate-400">Loading orders...</td></tr></tbody>
         </table>
     </div>
+    <div id="orders-pagination"></div>
 </div>
-<div id="master-toast" class="hidden fixed top-4 right-4 z-[100]"></div>
 @endsection

@@ -24,7 +24,7 @@ class TaxService
     {
         $rate = $this->rateForProduct($product) / 100;
 
-        if ($product->tax_included) {
+        if ($this->isTaxIncluded($product)) {
             $tax = round($lineSubtotal - ($lineSubtotal / (1 + $rate)), 2);
             $exclusive = round($lineSubtotal - $tax, 2);
 
@@ -74,10 +74,12 @@ class TaxService
 
         $exclusiveSubtotal = round($exclusiveSubtotal, 2);
         $taxAmount = round($taxAmount, 2);
+        $checkoutTaxAmount = round(collect($lines)->sum('tax_applied_at_checkout'), 2);
 
         return [
             'subtotal' => $exclusiveSubtotal,
             'tax_amount' => $taxAmount,
+            'checkout_tax_amount' => $checkoutTaxAmount,
             'items_total' => round($exclusiveSubtotal + $taxAmount, 2),
             'lines' => $lines,
             'has_inclusive_items' => collect($lines)->contains(fn ($l) => $l['tax_included']),
@@ -98,5 +100,10 @@ class TaxService
         }
 
         return 'GST';
+    }
+
+    public function isTaxIncluded(Product $product): bool
+    {
+        return (bool) $product->tax_included;
     }
 }

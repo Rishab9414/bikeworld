@@ -16,7 +16,7 @@ class AnnouncementSeeder extends Seeder
         $items = [
             // Top black bar
             ['text' => 'Free shipping on orders above ₹2,000', 'icon' => '🚚', 'position' => 'top_bar', 'type' => 'info', 'sort_order' => 1],
-            ['text' => 'Support: +91 98765 43210 · COD Available', 'icon' => '📞', 'position' => 'top_bar', 'type' => 'info', 'sort_order' => 2],
+            ['text' => 'Support: +91 9743663260 · COD Available', 'icon' => '📞', 'position' => 'top_bar', 'type' => 'info', 'sort_order' => 2],
 
             // Red scrolling ticker
             ['text' => 'Helmet Mega Sale — Up to 40% Off | Use code HELMET40', 'icon' => '🔥', 'position' => 'ticker', 'type' => 'promo', 'sort_order' => 1, 'link_url' => '/products?category=helmet'],

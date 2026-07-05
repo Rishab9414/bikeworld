@@ -94,12 +94,29 @@ class Customer extends Model
             'first_name' => $nameParts[0],
             'last_name' => $nameParts[1] ?? null,
             'email' => $user->email,
-            'mobile' => $user->phone ?? '9999999999',
+            'mobile' => self::resolveMobile($user),
+            'country_code' => '+91',
             'password' => $user->password,
             'registration_source' => 'website',
             'login_type' => 'email',
             'email_verified' => (bool) $user->email_verified_at,
             'account_status' => $user->status ? 'active' : 'inactive',
         ], $extra));
+    }
+
+    private static function resolveMobile(User $user): string
+    {
+        $phone = preg_replace('/\D/', '', (string) ($user->phone ?? ''));
+
+        if (strlen($phone) === 10) {
+            return $phone;
+        }
+
+        if (strlen($phone) === 12 && str_starts_with($phone, '91')) {
+            return substr($phone, 2);
+        }
+
+        // Unique fallback — never reuse a fixed placeholder for every user
+        return '99'.str_pad((string) $user->id, 8, '0', STR_PAD_LEFT);
     }
 }

@@ -18,11 +18,14 @@ class OrderStatusMail extends Mailable
         public string $mailSubject,
         public string $messageText,
         public string $event,
+        public array $meta = [],
     ) {}
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->mailSubject);
+        return new Envelope(
+            subject: $this->mailSubject,
+        );
     }
 
     public function content(): Content
@@ -31,6 +34,12 @@ class OrderStatusMail extends Mailable
             'order' => $this->order,
             'messageText' => $this->messageText,
             'event' => $this->event,
+            'meta' => $this->meta,
+            'headline' => $this->meta['headline'] ?? 'Order Update',
+            'badge' => $this->meta['badge'] ?? 'Updated',
+            'badgeBg' => $this->meta['badge_bg'] ?? '#F4F4F5',
+            'badgeColor' => $this->meta['badge_color'] ?? '#0A0A0A',
+            'orderUrl' => url(route('orders.show', $this->order, false)),
         ]);
     }
 }

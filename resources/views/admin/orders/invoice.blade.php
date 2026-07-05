@@ -15,5 +15,6 @@
     <p>Tax: ₹{{ number_format($order->tax_amount,2) }}</p>
     <p>Grand Total: ₹{{ number_format($order->displayTotal(),2) }}</p>
 </div>
+<p style="margin-top:24px;font-size:13px;color:#64748b;">Support: {{ config('store.support_email') }} | +91 {{ config('store.support_phone') }}</p>
 <script>window.onload=()=>window.print()</script>
 </body></html>

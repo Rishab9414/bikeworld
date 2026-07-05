@@ -38,13 +38,22 @@ class ProductController extends Controller
 
     public function data(Request $request): JsonResponse
     {
-        $query = Product::with(['category', 'brand'])->latest();
+        $query = Product::query()
+            ->select([
+                'id', 'name', 'sku', 'category_id', 'brand_id',
+                'selling_price', 'price', 'stock', 'status', 'featured',
+                'primary_image', 'image', 'thumbnail', 'created_at',
+            ])
+            ->with([
+                'category:id,name',
+                'brand:id,name',
+            ]);
 
         if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(fn ($q) => $q->where('name', 'like', "%{$s}%")
-                ->orWhere('sku', 'like', "%{$s}%")
-                ->orWhere('barcode', 'like', "%{$s}%"));
+            $s = '%'.$request->search.'%';
+            $query->where(fn ($q) => $q->where('name', 'like', $s)
+                ->orWhere('sku', 'like', $s)
+                ->orWhere('barcode', 'like', $s));
         }
 
         if ($request->filled('status')) {
@@ -55,22 +64,25 @@ class ProductController extends Controller
             $query->where('category_id', $request->category_id);
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $query->paginate(20)->through(fn ($p) => [
-                'id' => $p->id,
-                'name' => $p->name,
-                'sku' => $p->sku,
-                'category' => $p->category?->name,
-                'brand' => $p->brand?->name,
-                'selling_price' => $p->selling_price ?? $p->price,
-                'stock' => $p->stock,
-                'status' => $p->status,
-                'featured' => $p->featured,
-                'primary_image' => $p->displayImage(),
-                'created_at' => $p->created_at?->format('M d, Y'),
-            ]),
+        $perPage = min(max((int) $request->input('per_page', 20), 10), 50);
+
+        $paginator = $query->latest('id')->simplePaginate($perPage);
+
+        $paginator->getCollection()->transform(fn (Product $p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'sku' => $p->sku,
+            'category' => $p->category?->name,
+            'brand' => $p->brand?->name,
+            'selling_price' => $p->selling_price ?? $p->price,
+            'stock' => $p->stock,
+            'status' => $p->status,
+            'featured' => $p->featured,
+            'primary_image' => $p->displayImage(),
+            'created_at' => $p->created_at?->format('M d, Y'),
         ]);
+
+        return response()->json(['success' => true, 'data' => $paginator]);
     }
 
     public function create(): View

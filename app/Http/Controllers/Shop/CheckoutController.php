@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Shop;
 
 use App\Http\Controllers\Controller;
+use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\Setting;
 use App\Services\CartService;
 use App\Services\CheckoutCustomerService;
+use App\Services\CouponService;
 use App\Services\DelhiveryService;
 use App\Services\OrderService;
 use App\Services\RazorpayService;
+use App\Services\ShippingService;
 use App\Services\TaxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +26,9 @@ class CheckoutController extends Controller
         private RazorpayService $razorpay,
         private CheckoutCustomerService $checkoutCustomer,
         private DelhiveryService $delhivery,
+        private ShippingService $shipping,
         private TaxService $tax,
+        private CouponService $coupons,
     ) {}
 
     public function index()
@@ -41,32 +46,106 @@ class CheckoutController extends Controller
 
         $subtotal = $this->cart->subtotal();
         $taxSummary = $this->tax->summarizeCart($items);
-        $shippingCharge = $subtotal >= 2000 ? 0 : 99;
+        $couponsEnabled = Setting::couponsEnabled();
+        $couponData = $couponsEnabled ? $this->coupons->resolve($user, $items, $taxSummary['items_total']) : null;
+        $appliedCoupon = $couponData['coupon'] ?? null;
+        $couponDiscount = $couponData['discount'] ?? 0;
+        $orderAmount = max(0, $taxSummary['items_total'] - $couponDiscount);
+        $destinationPin = $defaultAddress?->pincode;
+        $shippingQuote = $this->shipping->calculateForCart($items, $destinationPin, 'online', $orderAmount);
+        $shippingCharge = $shippingQuote['amount'];
         $tax = $taxSummary['tax_amount'];
         $taxLabel = $this->tax->taxLabel($items);
-        $grandTotal = $taxSummary['items_total'] + $shippingCharge;
+        $grandTotal = max(0, $orderAmount + $shippingCharge);
+        $freeShippingEnabled = Setting::freeShippingEnabled();
+        $freeShippingMinAmount = Setting::freeShippingMinAmount();
+        $freeShippingQualified = Setting::qualifiesForFreeShipping($orderAmount);
+        $freeShippingRemaining = max(0, $freeShippingMinAmount - $orderAmount);
         $codEnabled = Setting::codEnabled();
+        $razorpayEnabled = $this->razorpay->isAvailable();
+        $razorpayLive = $razorpayEnabled && ! $this->razorpay->usesMockMode();
+        $defaultPayment = old('payment_method', $codEnabled ? 'cod' : 'online');
 
         return view('shop.checkout.index', compact(
             'items',
             'subtotal',
             'shippingCharge',
+            'shippingQuote',
             'tax',
             'taxLabel',
             'taxSummary',
             'grandTotal',
+            'couponsEnabled',
+            'appliedCoupon',
+            'couponDiscount',
             'customer',
             'defaultAddress',
             'user',
             'codEnabled',
+            'razorpayEnabled',
+            'razorpayLive',
+            'defaultPayment',
+            'freeShippingEnabled',
+            'freeShippingMinAmount',
+            'freeShippingQualified',
+            'freeShippingRemaining',
+            'orderAmount',
         ));
     }
 
     public function checkPincode(Request $request): JsonResponse
     {
-        $request->validate(['pincode' => ['required', 'digits:6']]);
+        $request->validate([
+            'pincode' => ['required', 'digits:6'],
+            'payment_method' => ['nullable', 'in:cod,online'],
+        ]);
 
-        return response()->json($this->delhivery->checkPincode($request->pincode));
+        $items = $this->cart->items();
+        $orderAmount = $this->orderAmountForShipping($items);
+        $pincodeCheck = $this->delhivery->checkPincode($request->pincode);
+        $shippingQuote = $this->shipping->calculateForCart(
+            $items,
+            $request->pincode,
+            $request->input('payment_method', 'online'),
+            $orderAmount
+        );
+
+        return response()->json(array_merge($pincodeCheck, [
+            'shipping_charge' => $shippingQuote['amount'],
+            'shipping_source' => $shippingQuote['source'],
+            'shipping_note' => $shippingQuote['note'],
+        ]));
+    }
+
+    public function shippingQuote(Request $request): JsonResponse
+    {
+        $request->validate([
+            'pincode' => ['required', 'digits:6'],
+            'payment_method' => ['nullable', 'in:cod,online'],
+        ]);
+
+        $items = $this->cart->items();
+        $taxSummary = $this->tax->summarizeCart($items);
+        $orderAmount = $this->orderAmountForShipping($items, $taxSummary);
+        $shippingQuote = $this->shipping->calculateForCart(
+            $items,
+            $request->pincode,
+            $request->input('payment_method', 'online'),
+            $orderAmount
+        );
+        $shippingCharge = $shippingQuote['amount'];
+        $couponData = Setting::couponsEnabled()
+            ? $this->coupons->resolve(Auth::user(), $items, $taxSummary['items_total'])
+            : null;
+        $couponDiscount = $couponData['discount'] ?? 0;
+        $grandTotal = max(0, $orderAmount + $shippingCharge);
+
+        return response()->json(array_merge($shippingQuote, [
+            'items_total' => $taxSummary['items_total'],
+            'coupon_discount' => round($couponDiscount, 2),
+            'coupon_code' => $couponData['coupon']->code ?? null,
+            'grand_total' => round($grandTotal, 2),
+        ]));
     }
 
     public function store(Request $request)
@@ -79,6 +158,8 @@ class CheckoutController extends Controller
 
         $sameBilling = $request->boolean('same_billing', true);
         $customerId = Customer::where('user_id', Auth::id())->value('id');
+        $codEnabled = Setting::codEnabled();
+        $razorpayEnabled = $this->razorpay->isAvailable();
 
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
@@ -114,8 +195,12 @@ class CheckoutController extends Controller
             'billing.pincode' => [$sameBilling ? 'nullable' : 'required', 'digits:6'],
 
             'notes' => ['nullable', 'string', 'max:500'],
-            'payment_method' => ['required', 'in:'.(Setting::codEnabled() ? 'cod,online' : 'online')],
+            'payment_method' => ['required', 'in:'.($codEnabled && $razorpayEnabled ? 'cod,online' : ($codEnabled ? 'cod' : 'online'))],
         ]);
+
+        if ($validated['payment_method'] === 'online' && ! $this->razorpay->isAvailable()) {
+            return back()->withInput()->with('error', 'Online payment is not available. Please choose Cash on Delivery or contact support.');
+        }
 
         if ($validated['payment_method'] === 'cod' && ! Setting::codEnabled()) {
             return back()->withInput()->with('error', 'Cash on Delivery is currently unavailable. Please pay online.');
@@ -153,13 +238,37 @@ class CheckoutController extends Controller
             );
 
             $addresses = $this->checkoutCustomer->buildOrderAddresses($shipping, $billing, $sameBilling);
-            $itemsTotal = $this->cart->subtotal();
-            $shippingCharge = $itemsTotal >= 2000 ? 0 : 99;
+
+            $couponDiscount = 0;
+            $coupon = null;
+            $taxSummary = $this->tax->summarizeCart($items);
+            if (Setting::couponsEnabled() && $this->coupons->getAppliedCode()) {
+                $coupon = Coupon::where('code', $this->coupons->getAppliedCode())->first();
+                if ($coupon) {
+                    $couponDiscount = $this->coupons->validateForCheckout(
+                        $coupon,
+                        Auth::user(),
+                        $items,
+                        $taxSummary['items_total']
+                    );
+                }
+            }
+
+            $orderAmount = max(0, $taxSummary['items_total'] - $couponDiscount);
+            $shippingQuote = $this->shipping->calculateForCart(
+                $items,
+                $validated['shipping']['pincode'],
+                $validated['payment_method'],
+                $orderAmount
+            );
+            $shippingCharge = $shippingQuote['amount'];
 
             $orderData = array_merge($addresses, [
                 'notes' => $validated['notes'] ?? null,
                 'shipping_charge' => $shippingCharge,
                 'expected_delivery' => now()->addDays($pincodeCheck['estimated_delivery_days'] ?? 5)->toDateString(),
+                'coupon' => $coupon,
+                'coupon_discount' => $couponDiscount,
             ]);
 
             $order = $this->orders->createFromCart(
@@ -172,19 +281,39 @@ class CheckoutController extends Controller
             $order->update(['customer_id' => $customer->id]);
 
             if ($validated['payment_method'] === 'online') {
-                $this->razorpay->createRazorpayOrder($order);
-                $this->cart->clear();
+                try {
+                    $this->razorpay->createRazorpayOrder($order);
+                } catch (\Throwable $e) {
+                    report($e);
 
-                return redirect()
-                    ->route('orders.payment', $order)
-                    ->with('success', 'Order created. Please complete payment.');
+                    return back()->withInput()->with('error', 'Could not start Razorpay payment: '.$e->getMessage());
+                }
+
+                $this->cart->clear();
+                $this->coupons->remove();
+
+                return redirect()->route('orders.payment', $order);
             }
 
             $this->cart->clear();
+            $this->coupons->remove();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return back()->withInput()->with('error', $e->validator->errors()->first('code'));
         } catch (\Throwable $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
 
         return redirect()->route('orders.show', $order)->with('success', 'Order placed successfully!');
+    }
+
+    private function orderAmountForShipping($items, ?array $taxSummary = null): float
+    {
+        $taxSummary ??= $this->tax->summarizeCart($items);
+        $couponData = Setting::couponsEnabled()
+            ? $this->coupons->resolve(Auth::user(), $items, $taxSummary['items_total'])
+            : null;
+        $discount = $couponData['discount'] ?? 0;
+
+        return max(0, $taxSummary['items_total'] - $discount);
     }
 }

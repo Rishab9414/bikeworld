@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Shop;
 use App\Http\Controllers\Controller;
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Services\CartService;
 use App\Services\TaxService;
 use Illuminate\Http\Request;
@@ -22,16 +23,22 @@ class CartController extends Controller
         $subtotal = $this->cart->subtotal();
         $taxSummary = $this->tax->summarizeCart($items);
         $taxLabel = $this->tax->taxLabel($items);
-        $shippingCharge = $subtotal >= 2000 ? 0 : 99;
-        $grandTotal = $taxSummary['items_total'] + $shippingCharge;
+        $grandTotal = $taxSummary['items_total'];
+        $freeShippingEnabled = Setting::freeShippingEnabled();
+        $freeShippingMinAmount = Setting::freeShippingMinAmount();
+        $freeShippingQualified = Setting::qualifiesForFreeShipping($grandTotal);
+        $freeShippingRemaining = max(0, $freeShippingMinAmount - $grandTotal);
 
         return view('shop.cart.index', compact(
             'items',
             'subtotal',
             'taxSummary',
             'taxLabel',
-            'shippingCharge',
             'grandTotal',
+            'freeShippingEnabled',
+            'freeShippingMinAmount',
+            'freeShippingQualified',
+            'freeShippingRemaining',
         ));
     }
 

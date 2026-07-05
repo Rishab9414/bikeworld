@@ -19,11 +19,15 @@ class CreateCustomerProfile
 
         $customer = Customer::fromUser($user);
 
-        app(LoyaltyService::class)->earn(
-            $customer->loyaltyPoint,
-            config('loyalty.earning.registration', 100),
-            'Registration bonus',
-            'registration'
-        );
+        try {
+            app(LoyaltyService::class)->earn(
+                $customer->loyaltyPoint,
+                config('loyalty.earning.registration', 100),
+                'Registration bonus',
+                'registration'
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

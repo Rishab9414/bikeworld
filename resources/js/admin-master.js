@@ -20,6 +20,7 @@ class MasterCrud {
         document.getElementById('btn-close-modal')?.addEventListener('click', () => this.closeModal());
         document.getElementById('btn-cancel')?.addEventListener('click', () => this.closeModal());
         this.form?.addEventListener('submit', (e) => this.handleSubmit(e));
+        this.bindImageFileInputs();
         this.searchInput?.addEventListener('input', this.debounce(() => this.loadData(), 400));
         this.statusFilter?.addEventListener('change', () => this.loadData());
         this.modal?.addEventListener('click', (e) => { if (e.target === this.modal) this.closeModal(); });
@@ -125,6 +126,7 @@ class MasterCrud {
         this.form.reset();
         this.modalTitle.textContent = title;
         this.form.querySelectorAll('.field-error').forEach(el => el.remove());
+        this.resetImagePreviews();
         this.modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         window.onMasterModalOpen?.();
@@ -153,6 +155,7 @@ class MasterCrud {
         Object.entries(data).forEach(([key, value]) => {
             const field = this.form.querySelector(`[name="${key}"]`);
             if (!field) return;
+            if (field.type === 'file') return;
             if (field.type === 'checkbox') {
                 field.checked = !!value;
             } else if (field.tagName === 'SELECT') {
@@ -161,7 +164,65 @@ class MasterCrud {
                 field.value = value ?? '';
             }
         });
+        this.updateImagePreviews(data);
         window.onMasterFormPopulate?.(data);
+    }
+
+    resetImagePreviews() {
+        this.form.querySelectorAll('[data-image-preview]').forEach((el) => {
+            el.classList.add('hidden');
+            el.removeAttribute('src');
+        });
+    }
+
+    updateImagePreviews(data = {}) {
+        this.form.querySelectorAll('[data-image-preview]').forEach((el) => {
+            const url = data[el.dataset.imagePreview] || '';
+            if (url) {
+                el.src = url;
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+                el.removeAttribute('src');
+            }
+        });
+    }
+
+    bindImageFileInputs() {
+        this.form.querySelectorAll('input[type="file"][data-preview-target]').forEach((input) => {
+            input.addEventListener('change', () => {
+                const preview = this.form.querySelector(`[data-image-preview="${input.dataset.previewTarget}"]`);
+                if (!preview) return;
+                const file = input.files?.[0];
+                if (!file) {
+                    preview.classList.add('hidden');
+                    preview.removeAttribute('src');
+                    return;
+                }
+                preview.src = URL.createObjectURL(file);
+                preview.classList.remove('hidden');
+            });
+        });
+    }
+
+    formUsesFiles() {
+        return [...this.form.elements].some((el) => el.type === 'file' && el.files?.length > 0);
+    }
+
+    buildFormBody() {
+        if (!this.formUsesFiles()) {
+            return { body: JSON.stringify(this.getFormData()), useMethodOverride: false };
+        }
+
+        const fd = new FormData(this.form);
+        this.form.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+            fd.set(cb.name, cb.checked ? '1' : '0');
+        });
+        if (this.recordId) {
+            fd.append('_method', 'PUT');
+        }
+
+        return { body: fd, useMethodOverride: !!this.recordId };
     }
 
     getFormData() {
@@ -185,15 +246,15 @@ class MasterCrud {
     async handleSubmit(e) {
         e.preventDefault();
         this.form.querySelectorAll('.field-error').forEach(el => el.remove());
-        const data = this.getFormData();
+        const { body, useMethodOverride } = this.buildFormBody();
         const btn = this.form.querySelector('[type="submit"]');
         btn.disabled = true;
         btn.textContent = 'Saving...';
 
         try {
             const url = this.recordId ? `${this.baseUrl}/${this.recordId}` : this.baseUrl;
-            const method = this.recordId ? 'PUT' : 'POST';
-            const result = await this.request(url, { method, body: JSON.stringify(data) });
+            const method = useMethodOverride ? 'POST' : (this.recordId ? 'PUT' : 'POST');
+            const result = await this.request(url, { method, body });
             this.showToast(result.message);
             this.closeModal();
             this.loadData();

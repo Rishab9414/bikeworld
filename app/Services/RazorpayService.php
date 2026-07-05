@@ -10,10 +10,24 @@ use Razorpay\Api\Errors\SignatureVerificationError;
 
 class RazorpayService
 {
+    public function hasCredentials(): bool
+    {
+        return filled(config('razorpay.key_id')) && filled(config('razorpay.key_secret'));
+    }
+
+    public function usesMockMode(): bool
+    {
+        return (bool) config('razorpay.mock') || ! $this->hasCredentials();
+    }
+
     public function isConfigured(): bool
     {
-        return config('razorpay.mock')
-            || (filled(config('razorpay.key_id')) && filled(config('razorpay.key_secret')));
+        return $this->usesMockMode() || $this->hasCredentials();
+    }
+
+    public function isAvailable(): bool
+    {
+        return $this->isConfigured();
     }
 
     public function createRazorpayOrder(Order $order): Order
@@ -24,7 +38,7 @@ class RazorpayService
 
         $amountPaise = $this->amountInPaise($order);
 
-        if (config('razorpay.mock') || ! $this->isConfigured()) {
+        if ($this->usesMockMode()) {
             $mockId = 'order_mock_'.Str::lower(Str::random(14));
             $order->update(['razorpay_order_id' => $mockId]);
 
@@ -65,7 +79,7 @@ class RazorpayService
             throw new \InvalidArgumentException('Razorpay order ID does not match.');
         }
 
-        if (config('razorpay.mock') || str_starts_with($razorpayOrderId, 'order_mock_')) {
+        if ($this->usesMockMode() || str_starts_with($razorpayOrderId, 'order_mock_')) {
             return $this->markOrderPaid($order, $razorpayPaymentId ?: 'pay_mock_'.Str::lower(Str::random(14)));
         }
 
@@ -118,7 +132,8 @@ class RazorpayService
                 'contact' => $prefill['contact'] ?? null,
             ]),
             'theme' => ['color' => '#E31E24'],
-            'mock' => config('razorpay.mock') || str_starts_with($order->razorpay_order_id ?? '', 'order_mock_'),
+            'mock' => $this->usesMockMode() || str_starts_with($order->razorpay_order_id ?? '', 'order_mock_'),
+            'live' => ! $this->usesMockMode(),
         ];
     }
 

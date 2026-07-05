@@ -242,6 +242,10 @@
 @include('admin.products.partials.quick-master-modal')
 @endsection
 
+@push('vite')
+@vite('resources/js/product-form.js')
+@endpush
+
 @push('scripts')
 <script type="module">
 const masters = @json($m);

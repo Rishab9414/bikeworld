@@ -32,15 +32,22 @@ class CustomerController extends Controller
     public function data(Request $request): JsonResponse
     {
         $query = Customer::query()
-            ->with(['wallet', 'loyaltyPoint'])
-            ->withCount(['orders', 'wishlists']);
+            ->select([
+                'id', 'user_id', 'customer_code', 'full_name', 'email', 'mobile',
+                'country_code', 'account_status', 'loyalty_tier', 'profile_image',
+                'last_login', 'created_at',
+            ])
+            ->with([
+                'wallet:id,customer_id,current_balance',
+                'loyaltyPoint:id,customer_id,total_points',
+            ]);
 
         if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(fn ($q) => $q->where('full_name', 'like', "%{$s}%")
-                ->orWhere('email', 'like', "%{$s}%")
-                ->orWhere('mobile', 'like', "%{$s}%")
-                ->orWhere('customer_code', 'like', "%{$s}%"));
+            $s = '%'.$request->search.'%';
+            $query->where(fn ($q) => $q->where('full_name', 'like', $s)
+                ->orWhere('email', 'like', $s)
+                ->orWhere('mobile', 'like', $s)
+                ->orWhere('customer_code', 'like', $s));
         }
 
         if ($request->filled('status')) {
@@ -68,10 +75,12 @@ class CustomerController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        $customers = $query->latest()->paginate(20);
+        $perPage = min(max((int) $request->input('per_page', 20), 10), 50);
+        $customers = $query->latest('id')->simplePaginate($perPage);
+        $orderStats = $this->stats->listStats($customers->getCollection());
 
-        $customers->getCollection()->transform(function (Customer $c) {
-            $stats = $this->stats->stats($c);
+        $customers->getCollection()->transform(function (Customer $c) use ($orderStats) {
+            $stats = $orderStats[$c->id] ?? ['total_orders' => 0, 'total_spend' => 0.0];
 
             return [
                 'id' => $c->id,
@@ -83,11 +92,11 @@ class CustomerController extends Controller
                 'last_login' => $c->last_login?->format('M d, Y H:i') ?? '—',
                 'total_orders' => $stats['total_orders'],
                 'total_spend' => $stats['total_spend'],
-                'wallet_balance' => $stats['wallet_balance'],
-                'loyalty_points' => $stats['loyalty_points'],
+                'wallet_balance' => (float) ($c->wallet?->current_balance ?? 0),
+                'loyalty_points' => (int) ($c->loyaltyPoint?->total_points ?? 0),
                 'status' => $c->account_status,
                 'loyalty_tier' => $c->loyalty_tier,
-                'profile_image' => $c->profileImageUrl(),
+                'profile_image' => $c->profile_image ? asset('storage/'.$c->profile_image) : null,
             ];
         });
 

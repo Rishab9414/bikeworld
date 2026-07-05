@@ -1,47 +1,50 @@
-<x-guest-layout>
-    <!-- Session Status -->
-    <x-auth-session-status class="mb-4" :status="session('status')" />
+@extends('layouts.shop')
 
-    <form method="POST" action="{{ route('login') }}">
+@section('title', 'Sign In — ' . config('app.name'))
+
+@section('content')
+<x-auth-shell active="login" title="Welcome back" subtitle="Sign in to track orders and checkout faster.">
+    <x-auth-session-status class="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 text-sm font-medium" :status="session('status')" />
+
+    <form method="POST" action="{{ route('login') }}" class="space-y-5 max-w-md">
         @csrf
 
-        <!-- Email Address -->
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
-        </div>
+        <x-auth-field
+            label="Email address"
+            name="email"
+            type="email"
+            placeholder="you@example.com"
+            autocomplete="username"
+            :autofocus="true"
+            required
+        >
+            <x-slot:icon>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </x-slot:icon>
+        </x-auth-field>
 
-        <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
+        <x-auth-password placeholder="Enter your password" autocomplete="current-password" />
 
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
-
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
-
-        <!-- Remember Me -->
-        <div class="block mt-4">
-            <label for="remember_me" class="inline-flex items-center">
-                <input id="remember_me" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" name="remember">
-                <span class="ms-2 text-sm text-gray-600">{{ __('Remember me') }}</span>
+        <div class="flex items-center justify-between gap-3">
+            <label for="remember_me" class="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input id="remember_me" type="checkbox" name="remember" class="w-4 h-4 rounded border-zinc-300 text-brand-red focus:ring-brand-red/30">
+                <span class="text-sm text-zinc-600">Remember me</span>
             </label>
-        </div>
-
-        <div class="flex items-center justify-end mt-4">
             @if (Route::has('password.request'))
-                <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('password.request') }}">
-                    {{ __('Forgot your password?') }}
-                </a>
+            <a href="{{ route('password.request') }}" class="text-sm font-semibold text-brand-red hover:text-red-700 transition-colors">
+                Forgot password?
+            </a>
             @endif
-
-            <x-primary-button class="ms-3">
-                {{ __('Log in') }}
-            </x-primary-button>
         </div>
+
+        <button type="submit" class="w-full bg-brand-red hover:bg-red-700 text-white font-bold text-sm py-3.5 rounded-xl transition-colors shadow-md shadow-brand-red/20">
+            Sign in to your account
+        </button>
     </form>
-</x-guest-layout>
+
+    <p class="mt-6 text-sm text-zinc-500">
+        Don't have an account?
+        <a href="{{ route('register') }}" class="font-bold text-brand-red hover:text-red-700 transition-colors">Create one free</a>
+    </p>
+</x-auth-shell>
+@endsection

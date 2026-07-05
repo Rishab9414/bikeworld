@@ -4,47 +4,136 @@
 @section('page-subtitle', 'Manage your product catalog')
 
 @push('scripts')
-<script type="module">
-window.renderMasterRow = (row) => `<tr class="hover:bg-slate-50">
-    <td class="px-5 py-3.5"><div class="flex items-center gap-3">
-        ${row.primary_image ? `<img src="/storage/${row.primary_image}" class="w-10 h-10 rounded-lg object-cover">` : `<div class="w-10 h-10 bg-slate-100 rounded-lg"></div>`}
-        <div><p class="font-medium text-slate-900">${row.name}</p><p class="text-xs text-slate-400">${row.sku || '—'}</p></div>
-    </div></td>
-    <td class="px-5 py-3.5 text-sm">${row.category || '—'}</td>
-    <td class="px-5 py-3.5 text-sm">${row.brand || '—'}</td>
-    <td class="px-5 py-3.5 font-semibold">₹${parseFloat(row.selling_price||0).toFixed(2)}</td>
-    <td class="px-5 py-3.5 text-sm">${row.stock}</td>
-    <td class="px-5 py-3.5"><span class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${row.status==='published'?'bg-emerald-100 text-emerald-700':row.status==='draft'?'bg-slate-100 text-slate-600':'bg-amber-100 text-amber-700'}">${row.status}</span></td>
-    <td class="px-5 py-3.5 text-right"><div class="flex justify-end gap-1">
-        <a href="/admin/products/${row.id}/edit" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Edit"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>
-        <button data-delete="${row.id}" class="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Delete"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
-    </div></td>
-</tr>`;
+<script>
+(function () {
+    const baseUrl = @json(url('/admin/products'));
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+    const tableBody = document.getElementById('master-table-body');
+    const searchInput = document.getElementById('master-search');
+    const statusFilter = document.getElementById('master-status-filter');
+    const paginationEl = document.getElementById('products-pagination');
+    let currentPage = 1;
+    let debounceTimer = null;
 
-class ProductListCrud extends MasterCrud {
-    async deleteRecord(id) {
-        if (!confirm('Delete this product?')) return;
-        try {
-            const result = await this.request(`${this.baseUrl}/${id}`, { method: 'DELETE' });
-            this.showToast(result.message);
-            this.loadData();
-        } catch (e) { this.showToast(e.message, 'error'); }
+    function imageCell(path) {
+        if (!path) return '<div class="w-10 h-10 bg-slate-100 rounded-lg shrink-0"></div>';
+        return `<img src="/storage/${path}" class="w-10 h-10 rounded-lg object-cover shrink-0" alt="" loading="lazy">`;
     }
-    async loadData() {
-        const params = new URLSearchParams();
-        if (this.searchInput?.value) params.set('search', this.searchInput.value);
-        if (this.statusFilter?.value) params.set('status', this.statusFilter.value);
-        this.tableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-12 text-center text-slate-400">Loading...</td></tr>`;
+
+    function renderRow(row) {
+        const statusClass = row.status === 'published' ? 'bg-emerald-100 text-emerald-700'
+            : row.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-700';
+
+        return `<tr class="hover:bg-slate-50">
+            <td class="px-5 py-3.5">
+                <div class="flex items-center gap-3">
+                    ${imageCell(row.primary_image)}
+                    <div class="min-w-0">
+                        <p class="font-medium text-slate-900 truncate">${row.name}</p>
+                        <p class="text-xs text-slate-400">${row.sku || '—'}</p>
+                    </div>
+                </div>
+            </td>
+            <td class="px-5 py-3.5 text-sm">${row.category || '—'}</td>
+            <td class="px-5 py-3.5 text-sm">${row.brand || '—'}</td>
+            <td class="px-5 py-3.5 font-semibold">₹${parseFloat(row.selling_price || 0).toFixed(2)}</td>
+            <td class="px-5 py-3.5 text-sm">${row.stock}</td>
+            <td class="px-5 py-3.5"><span class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${statusClass}">${row.status}</span></td>
+            <td class="px-5 py-3.5 text-right">
+                <div class="flex justify-end gap-1">
+                    <a href="/admin/products/${row.id}/edit" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Edit">Edit</a>
+                    <button type="button" data-delete="${row.id}" class="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Delete">Del</button>
+                </div>
+            </td>
+        </tr>`;
+    }
+
+    function showLoading() {
+        tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-12 text-center text-slate-400">Loading products...</td></tr>';
+    }
+
+    function showToast(msg, type = 'success') {
+        const el = document.getElementById('master-toast');
+        if (!el) return;
+        el.className = `fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl text-sm font-medium shadow-lg ${type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+
+    function renderPagination(meta) {
+        if (!paginationEl) return;
+        paginationEl.innerHTML = `
+            <div class="flex items-center justify-between px-5 py-4 border-t border-slate-100 text-sm text-slate-500">
+                <span>Page ${meta.current_page}${meta.to ? ' · ' + meta.from + '–' + meta.to : ''}</span>
+                <div class="flex gap-2">
+                    <button type="button" id="products-prev" ${meta.prev_page_url ? '' : 'disabled'} class="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">Previous</button>
+                    <button type="button" id="products-next" ${meta.next_page_url ? '' : 'disabled'} class="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">Next</button>
+                </div>
+            </div>`;
+        document.getElementById('products-prev')?.addEventListener('click', () => { if (meta.prev_page_url) { currentPage--; loadProducts(); } });
+        document.getElementById('products-next')?.addEventListener('click', () => { if (meta.next_page_url) { currentPage++; loadProducts(); } });
+    }
+
+    async function loadProducts() {
+        showLoading();
+        const params = new URLSearchParams({ page: String(currentPage) });
+        if (searchInput?.value.trim()) params.set('search', searchInput.value.trim());
+        if (statusFilter?.value) params.set('status', statusFilter.value);
+
         try {
-            const result = await this.request(`${this.baseUrl}/data?${params}`);
-            const rows = result.data.data || result.data;
-            this.renderTable(Array.isArray(rows) ? rows : []);
+            const res = await fetch(`${baseUrl}/data?${params}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const result = await res.json();
+            const payload = result.data || {};
+            const rows = Array.isArray(payload.data) ? payload.data : [];
+
+            if (!rows.length) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-12 text-center text-slate-400">No products found.</td></tr>';
+            } else {
+                tableBody.innerHTML = rows.map(renderRow).join('');
+                tableBody.querySelectorAll('[data-delete]').forEach(btn => {
+                    btn.addEventListener('click', () => deleteProduct(btn.dataset.delete));
+                });
+            }
+
+            renderPagination({
+                current_page: payload.current_page || 1,
+                from: payload.from,
+                to: payload.to,
+                prev_page_url: payload.prev_page_url,
+                next_page_url: payload.next_page_url,
+            });
         } catch (e) {
-            this.tableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-red-500">Failed to load.</td></tr>`;
+            tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center text-red-500">Failed to load products.</td></tr>';
         }
     }
-}
-new ProductListCrud({ baseUrl: @js(url('/admin/products')), module: 'products' });
+
+    async function deleteProduct(id) {
+        if (!confirm('Delete this product?')) return;
+        try {
+            const res = await fetch(`${baseUrl}/${id}`, {
+                method: 'DELETE',
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.message || 'Delete failed');
+            showToast(result.message || 'Product deleted.');
+            loadProducts();
+        } catch (e) {
+            showToast(e.message || 'Delete failed.', 'error');
+        }
+    }
+
+    searchInput?.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { currentPage = 1; loadProducts(); }, 350);
+    });
+    statusFilter?.addEventListener('change', () => { currentPage = 1; loadProducts(); });
+
+    loadProducts();
+})();
 </script>
 @endpush
 
@@ -82,9 +171,10 @@ new ProductListCrud({ baseUrl: @js(url('/admin/products')), module: 'products' }
                     <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Actions</th>
                 </tr>
             </thead>
-            <tbody id="master-table-body"><tr><td colspan="7" class="px-6 py-12 text-center text-slate-400">Loading...</td></tr></tbody>
+            <tbody id="master-table-body"><tr><td colspan="7" class="px-6 py-12 text-center text-slate-400">Loading products...</td></tr></tbody>
         </table>
     </div>
+    <div id="products-pagination"></div>
 </div>
 <div id="master-toast" class="hidden fixed top-4 right-4 z-[100]"></div>
 @endsection

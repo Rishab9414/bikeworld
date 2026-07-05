@@ -5,21 +5,26 @@
     $discount = $mrp && $mrp > $price ? round((($mrp - $price) / $mrp) * 100) : 0;
 @endphp
 <div class="group bg-white rounded-2xl border border-zinc-100 overflow-hidden hover:shadow-xl hover:shadow-brand-red/5 hover:border-brand-red/20 transition-all duration-300">
-    <a href="{{ route('products.show', $product) }}" class="block relative aspect-square bg-zinc-50 overflow-hidden">
-        @if($img)
-            <img src="{{ asset('storage/'.$img) }}" alt="{{ $product->name }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-        @else
-            <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200">
-                <svg class="w-16 h-16 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-            </div>
-        @endif
+    <div class="relative aspect-square bg-zinc-50 overflow-hidden">
+        <a href="{{ route('products.show', $product) }}" class="block w-full h-full">
+            @if($img)
+                <img src="{{ asset('storage/'.$img) }}" alt="{{ $product->name }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+            @else
+                <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-100 to-zinc-200">
+                    <svg class="w-16 h-16 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                </div>
+            @endif
+        </a>
         @if($discount > 0)
-            <span class="absolute top-3 left-3 bg-brand-red text-white text-xs font-bold px-2.5 py-1 rounded-md">{{ $discount }}% OFF</span>
+            <span class="absolute top-3 left-3 bg-brand-red text-white text-xs font-bold px-2.5 py-1 rounded-md z-10">{{ $discount }}% OFF</span>
         @endif
         @if($product->featured)
-            <span class="absolute top-3 right-3 bg-brand-black text-white text-xs font-bold px-2.5 py-1 rounded-md">FEATURED</span>
+            <span class="absolute bottom-3 left-3 bg-brand-black text-white text-xs font-bold px-2.5 py-1 rounded-md z-10">FEATURED</span>
         @endif
-    </a>
+        <div class="absolute top-3 right-3">
+            <x-wishlist-button :product="$product" size="sm" />
+        </div>
+    </div>
     <div class="p-4">
         <p class="text-xs text-brand-red font-semibold uppercase tracking-wide mb-1">{{ $product->brand?->name ?? $product->category?->name }}</p>
         <a href="{{ route('products.show', $product) }}" class="block">

@@ -38,7 +38,11 @@
                 <div class="flex justify-between"><span>Subtotal</span><span>₹{{ number_format($o->subtotal, 2) }}</span></div>
                 <div class="flex justify-between"><span>Shipping</span><span>₹{{ number_format($o->shipping_charge, 2) }}</span></div>
                 <div class="flex justify-between"><span>Tax (GST)</span><span>₹{{ number_format($o->tax_amount, 2) }}</span></div>
-                @if($o->discount > 0)<div class="flex justify-between text-emerald-600"><span>Discount</span><span>-₹{{ number_format($o->discount, 2) }}</span></div>@endif
+                @if($o->coupon_discount > 0)
+                <div class="flex justify-between text-emerald-600"><span>Coupon @if($o->coupon_code)({{ $o->coupon_code }})@endif</span><span>-₹{{ number_format($o->coupon_discount, 2) }}</span></div>
+                @elseif($o->discount > 0)
+                <div class="flex justify-between text-emerald-600"><span>Discount</span><span>-₹{{ number_format($o->discount, 2) }}</span></div>
+                @endif
                 <div class="flex justify-between font-bold text-base pt-2 border-t"><span>Grand Total</span><span>₹{{ number_format($o->displayTotal(), 2) }}</span></div>
             </div>
         </div>
@@ -110,8 +114,12 @@
             <h3 class="font-bold mb-3">Actions</h3>
             <button data-action="confirm" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100">✓ Confirm Order</button>
             <button data-action="create-shipment" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100">📦 Create Shipment</button>
-            <a href="{{ route('admin.orders.invoice', $o) }}" target="_blank" class="block w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🧾 Print Invoice</a>
-            @if($ship)<a href="{{ route('admin.orders.label', $o) }}" target="_blank" class="block w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🏷️ Print Shipping Label</a>@endif
+            <button data-action="generate-invoice" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🧾 Generate Invoice</button>
+            <a href="{{ route('admin.orders.invoice', $o) }}" target="_blank" class="block w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🖨️ Print Invoice</a>
+            @if($ship)
+            <button data-action="generate-label" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🏷️ Generate Label</button>
+            <a href="{{ route('admin.orders.label', $o) }}" target="_blank" class="block w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🖨️ Print Shipping Label</a>
+            @endif
             <button data-action="schedule-pickup" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100">🚚 Schedule Pickup</button>
             <button data-action="track" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100">📍 Track Shipment</button>
             <button data-action="cancel-shipment" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-amber-50 text-amber-700 rounded-xl hover:bg-amber-100">✕ Cancel Shipment</button>
@@ -129,7 +137,9 @@ const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 const base = @js(url('/admin/orders/'.$o->id));
 const routes = {
     confirm: { method: 'PATCH', url: `${base}/confirm` },
-    'create-shipment': { method: 'POST', url: `${base}/create-shipment-sync` },
+    'create-shipment': { method: 'POST', url: `${base}/create-shipment` },
+    'generate-invoice': { method: 'POST', url: `${base}/generate-invoice` },
+    'generate-label': { method: 'POST', url: `${base}/generate-label` },
     'schedule-pickup': { method: 'POST', url: `${base}/schedule-pickup` },
     track: { method: 'POST', url: `${base}/track` },
     'cancel-shipment': { method: 'POST', url: `${base}/cancel-shipment` },
@@ -145,8 +155,8 @@ document.querySelectorAll('.action-btn').forEach(btn => {
         try {
             const res = await fetch(r.url, { method: r.method, headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json' } });
             const json = await res.json();
-            alert(json.message || (json.success ? 'Done' : 'Failed'));
-            if (json.success) location.reload();
+            alert(json.message || (json.success ? 'Queued — refresh in a moment.' : 'Failed'));
+            if (json.success && !['track', 'generate-invoice', 'generate-label', 'create-shipment', 'schedule-pickup', 'cancel-shipment'].includes(action)) location.reload();
         } catch (e) { alert(e.message); }
     });
 });

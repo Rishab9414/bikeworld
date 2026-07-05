@@ -6,6 +6,11 @@
 @push('scripts')
 <script type="module">
 window.renderMasterRow = (row) => `<tr class="hover:bg-slate-50">
+    <td class="px-5 py-3.5">
+        ${row.image_url
+            ? `<img src="${row.image_url}" alt="" class="w-14 h-10 rounded-lg object-cover border border-slate-200">`
+            : `<div class="w-14 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-[10px]">No img</div>`}
+    </td>
     <td class="px-5 py-3.5 text-sm text-slate-600">${row.vehicle_brand_name || '—'}</td>
     <td class="px-5 py-3.5"><div class="font-medium text-slate-900">${row.name}</div><div class="text-xs text-slate-400">${row.slug || ''}</div></td>
     <td class="px-5 py-3.5 text-sm text-slate-600">${row.year || '—'}</td>
@@ -34,15 +39,36 @@ window.onMasterModalOpen = async (data) => {
 <x-master-crud
     :base-url="route('admin.masters.bike_models.index')"
     module="bike-models"
-    :columns="[['label'=>'Vehicle Brand'],['label'=>'Name'],['label'=>'Year'],['label'=>'Engine CC'],['label'=>'Status']]"
+    :columns="[['label'=>'Photo'],['label'=>'Vehicle Brand'],['label'=>'Name'],['label'=>'Year'],['label'=>'Engine CC'],['label'=>'Status']]"
 >
     <x-slot:form>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="sm:col-span-2"><label class="block text-sm font-medium text-slate-700 mb-1">Vehicle Brand *</label><select name="vehicle_brand_id" id="vehicle_brand_id" required class="admin-input text-sm"><option value="">Select Vehicle Brand</option></select></div>
-            <div class="sm:col-span-2"><label class="block text-sm font-medium text-slate-700 mb-1">Model Name *</label><input name="name" required class="admin-input text-sm"></div>
-            <div><label class="block text-sm font-medium text-slate-700 mb-1">Year</label><input name="year" class="admin-input text-sm" placeholder="e.g. 2024"></div>
-            <div><label class="block text-sm font-medium text-slate-700 mb-1">Engine CC</label><input name="engine_cc" type="number" min="0" class="admin-input text-sm"></div>
-            <div><label class="block text-sm font-medium text-slate-700 mb-1">Status</label><select name="status" class="admin-input text-sm"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Vehicle Brand *</label>
+                <select name="vehicle_brand_id" id="vehicle_brand_id" required class="admin-input text-sm"><option value="">Select Vehicle Brand</option></select>
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Model Name *</label>
+                <input name="name" required class="admin-input text-sm">
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Bike Photo *</label>
+                <img data-image-preview="image_url" class="hidden w-full max-w-xs h-40 object-cover rounded-xl border border-slate-200 mb-2" alt="Preview">
+                <input type="file" name="image_file" accept="image/jpeg,image/jpg,image/png,image/webp" data-preview-target="image_url" class="admin-input text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium">
+                <p class="text-xs text-slate-400 mt-1">Upload bike model photo for Shop by Bike section (JPEG, PNG, WebP — max 4MB)</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Year</label>
+                <input name="year" class="admin-input text-sm" placeholder="e.g. 2024">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Engine CC</label>
+                <input name="engine_cc" type="number" min="0" class="admin-input text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <select name="status" class="admin-input text-sm"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+            </div>
         </div>
     </x-slot:form>
 </x-master-crud>

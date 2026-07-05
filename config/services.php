@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'brevo' => [
+        'api_key' => env('BREVO_API_KEY'),
+        'sms_enabled' => env('BREVO_SMS_ENABLED', false),
+        'whatsapp_enabled' => env('BREVO_WHATSAPP_ENABLED', false),
+        'sms_sender' => env('BREVO_SMS_SENDER', env('APP_NAME', 'BikeWorld')),
+    ],
+
 ];

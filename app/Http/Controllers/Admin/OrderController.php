@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CancelShipmentJob;
 use App\Jobs\CreateShipmentJob;
 use App\Jobs\GenerateInvoiceJob;
 use App\Jobs\GenerateLabelJob;
-use App\Jobs\SyncTrackingJob;
+use App\Jobs\SchedulePickupJob;
+use App\Jobs\TrackShipmentJob;
+use App\Models\Customer;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\DelhiveryService;
 use App\Services\OrderService;
@@ -18,11 +22,6 @@ use Illuminate\View\View;
 
 class OrderController extends Controller
 {
-    public function __construct(
-        private OrderService $orders,
-        private DelhiveryService $delhivery,
-    ) {}
-
     public function index(): View
     {
         return view('admin.orders.index');
@@ -30,13 +29,32 @@ class OrderController extends Controller
 
     public function data(Request $request): JsonResponse
     {
-        $query = Order::with(['customer', 'user', 'items'])->latest();
+        $query = Order::query()
+            ->select([
+                'id', 'order_number', 'customer_id', 'user_id',
+                'status', 'payment_status', 'grand_total', 'total', 'created_at',
+            ])
+            ->with([
+                'customer:id,full_name,mobile,email',
+                'user:id,name,email,phone',
+            ])
+            ->withCount('items');
 
         if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(fn ($q) => $q->where('order_number', 'like', "%{$s}%")
-                ->orWhereHas('customer', fn ($c) => $c->where('full_name', 'like', "%{$s}%")->orWhere('mobile', 'like', "%{$s}%"))
-                ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%")));
+            $s = '%'.$request->search.'%';
+            $query->where(function ($q) use ($s) {
+                $q->where('order_number', 'like', $s)
+                    ->orWhereIn('customer_id', Customer::query()
+                        ->where(function ($c) use ($s) {
+                            $c->where('full_name', 'like', $s)->orWhere('mobile', 'like', $s);
+                        })
+                        ->select('id'))
+                    ->orWhereIn('user_id', User::query()
+                        ->where(function ($u) use ($s) {
+                            $u->where('name', 'like', $s)->orWhere('email', 'like', $s);
+                        })
+                        ->select('id'));
+            });
         }
 
         if ($request->filled('status')) {
@@ -55,24 +73,30 @@ class OrderController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
+        $perPage = min(max((int) $request->input('per_page', 20), 10), 50);
+
+        $paginator = $query->latest('id')->simplePaginate($perPage);
+
+        $paginator->getCollection()->transform(fn (Order $o) => [
+            'id' => $o->id,
+            'order_number' => $o->order_number,
+            'customer_name' => $o->customer?->full_name ?? $o->user?->name ?? 'Guest',
+            'mobile' => $o->customer?->mobile ?? $o->user?->phone ?? '—',
+            'email' => $o->customer?->email ?? $o->user?->email ?? '—',
+            'items_count' => $o->items_count,
+            'grand_total' => $o->displayTotal(),
+            'payment_status' => $o->payment_status,
+            'status' => $o->status,
+            'created_at' => $o->created_at?->format('M d, Y H:i'),
+        ]);
+
         return response()->json([
             'success' => true,
-            'data' => $query->paginate(20)->through(fn (Order $o) => [
-                'id' => $o->id,
-                'order_number' => $o->order_number,
-                'customer_name' => $o->customer?->full_name ?? $o->user?->name ?? 'Guest',
-                'mobile' => $o->customer?->mobile ?? $o->user?->phone ?? '—',
-                'email' => $o->customer?->email ?? $o->user?->email ?? '—',
-                'items_count' => $o->items->count(),
-                'grand_total' => $o->displayTotal(),
-                'payment_status' => $o->payment_status,
-                'status' => $o->status,
-                'created_at' => $o->created_at?->format('M d, Y H:i'),
-            ]),
+            'data' => $paginator,
         ]);
     }
 
-    public function show(Order $order): View
+    public function show(Order $order, OrderService $orders): View
     {
         $order->load([
             'customer', 'user', 'items.product', 'shipment.tracking',
@@ -81,13 +105,13 @@ class OrderController extends Controller
 
         return view('admin.orders.show', [
             'order' => $order,
-            'timeline' => $this->orders->timeline($order),
+            'timeline' => $orders->timeline($order),
         ]);
     }
 
-    public function confirm(Order $order): JsonResponse
+    public function confirm(Order $order, OrderService $orders): JsonResponse
     {
-        $this->orders->confirm($order, 'admin');
+        $orders->confirm($order, 'admin');
         ActivityLogger::log('updated', 'orders', $order, "Order {$order->order_number} confirmed");
 
         return response()->json(['success' => true, 'message' => 'Order confirmed and stock reserved.', 'status' => $order->fresh()->status]);
@@ -99,55 +123,68 @@ class OrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Order must be confirmed before creating shipment.'], 422);
         }
 
-        CreateShipmentJob::dispatch($order);
+        CreateShipmentJob::dispatch($order->id, auth()->id());
 
         return response()->json(['success' => true, 'message' => 'Shipment creation queued. Refresh in a moment.']);
     }
 
+    /** @deprecated Use createShipment — kept for backwards compatibility */
     public function createShipmentSync(Order $order): JsonResponse
     {
-        $shipment = $this->delhivery->createShipment($order->fresh(['items', 'customer']));
-        ActivityLogger::log('updated', 'orders', $order, "Shipment created for {$order->order_number}");
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Shipment created.',
-            'waybill' => $shipment->waybill,
-            'tracking_url' => $shipment->tracking_url,
-        ]);
+        return $this->createShipment($order);
     }
 
     public function generateInvoice(Order $order): JsonResponse
     {
-        GenerateInvoiceJob::dispatch($order);
-        $invoice = $this->orders->generateInvoice($order->fresh('items'));
+        GenerateInvoiceJob::dispatch($order->id, auth()->id());
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Invoice generated.',
-            'url' => asset('storage/'.$invoice->invoice_pdf),
-        ]);
+        return response()->json(['success' => true, 'message' => 'Invoice generation queued. Refresh in a moment.']);
     }
 
-    public function printInvoice(Order $order): View
+    public function printInvoice(Order $order, OrderService $orders): View
     {
         $order->load('items', 'customer', 'invoiceRecord');
+
         if (! $order->invoiceRecord) {
-            $this->orders->generateInvoice($order);
+            GenerateInvoiceJob::dispatchSync($order->id, auth()->id());
             $order->load('invoiceRecord');
         }
 
         return view('admin.orders.invoice', compact('order'));
     }
 
-    public function printLabel(Order $order)
+    public function generateLabel(Order $order): JsonResponse
     {
         $shipment = $order->shipment ?? $order->shipmentRecord;
+
+        if (! $shipment) {
+            return response()->json(['success' => false, 'message' => 'Create shipment first.'], 422);
+        }
+
+        GenerateLabelJob::dispatch($shipment->id, auth()->id());
+
+        return response()->json(['success' => true, 'message' => 'Label generation queued. Refresh in a moment.']);
+    }
+
+    public function printLabel(Order $order, DelhiveryService $delhivery)
+    {
+        $shipment = $order->shipment ?? $order->shipmentRecord;
+
         if (! $shipment) {
             abort(404, 'No shipment found. Create shipment first.');
         }
 
-        $path = $this->delhivery->generateLabel($shipment);
+        if (! $shipment->shipping_label || ! Storage::disk('public')->exists($shipment->shipping_label)) {
+            GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
+            $shipment->refresh();
+        }
+
+        $path = $shipment->shipping_label;
+
+        if (! $path || ! Storage::disk('public')->exists($path)) {
+            abort(404, 'Label not ready yet. Try again in a moment.');
+        }
+
         if (str_ends_with($path, '.html')) {
             return response(Storage::disk('public')->get($path))->header('Content-Type', 'text/html');
         }
@@ -158,24 +195,25 @@ class OrderController extends Controller
     public function schedulePickup(Order $order): JsonResponse
     {
         $shipment = $order->shipment ?? $order->shipmentRecord;
+
         if (! $shipment) {
             return response()->json(['success' => false, 'message' => 'Create shipment first.'], 422);
         }
 
-        $this->delhivery->schedulePickup($shipment);
-        ActivityLogger::log('updated', 'orders', $order, "Pickup scheduled for {$order->order_number}");
+        SchedulePickupJob::dispatch($shipment->id, auth()->id());
 
-        return response()->json(['success' => true, 'message' => 'Pickup scheduled successfully.']);
+        return response()->json(['success' => true, 'message' => 'Pickup scheduling queued. Refresh in a moment.']);
     }
 
     public function trackShipment(Order $order): JsonResponse
     {
         $shipment = $order->shipment ?? $order->shipmentRecord;
+
         if (! $shipment) {
             return response()->json(['success' => false, 'message' => 'No shipment found.'], 404);
         }
 
-        SyncTrackingJob::dispatch($shipment);
+        TrackShipmentJob::dispatch($shipment->id);
 
         return response()->json([
             'success' => true,
@@ -188,36 +226,36 @@ class OrderController extends Controller
     public function cancelShipment(Order $order): JsonResponse
     {
         $shipment = $order->shipment ?? $order->shipmentRecord;
+
         if (! $shipment) {
             return response()->json(['success' => false, 'message' => 'No shipment found.'], 404);
         }
 
-        $this->delhivery->cancelShipment($shipment);
-        $this->orders->updateStatus($order, 'cancelled', 'Shipment Cancelled', null, 'admin');
+        CancelShipmentJob::dispatch($shipment->id, $order->id, auth()->id());
 
-        return response()->json(['success' => true, 'message' => 'Shipment cancelled.']);
+        return response()->json(['success' => true, 'message' => 'Shipment cancellation queued.']);
     }
 
-    public function cancel(Order $order): JsonResponse
+    public function cancel(Order $order, OrderService $orders): JsonResponse
     {
-        $this->orders->cancel($order);
+        $orders->cancel($order);
         ActivityLogger::log('updated', 'orders', $order, "Order {$order->order_number} cancelled");
 
         return response()->json(['success' => true, 'message' => 'Order cancelled.']);
     }
 
-    public function refund(Order $order): JsonResponse
+    public function refund(Order $order, OrderService $orders): JsonResponse
     {
-        $this->orders->refund($order);
+        $orders->refund($order);
         ActivityLogger::log('updated', 'orders', $order, "Order {$order->order_number} refunded");
 
         return response()->json(['success' => true, 'message' => 'Refund processed.']);
     }
 
-    public function returnOrder(Order $order): JsonResponse
+    public function returnOrder(Order $order, OrderService $orders, DelhiveryService $delhivery): JsonResponse
     {
-        $this->orders->updateStatus($order, 'returned', 'Return Initiated', 'Reverse pickup to be scheduled', 'admin');
-        $this->delhivery->handleWebhook([
+        $orders->updateStatus($order, 'returned', 'Return Initiated', 'Reverse pickup to be scheduled', 'admin');
+        $delhivery->handleWebhook([
             'waybill' => $order->shipmentRecord?->waybill,
             'status' => 'returned',
             'remarks' => 'Return requested by admin',

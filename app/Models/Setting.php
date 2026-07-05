@@ -42,4 +42,40 @@ class Setting extends Model
     {
         return static::getBool('default_tax_included', false);
     }
+
+    public static function shopByBikeEnabled(): bool
+    {
+        return static::getBool('shop_by_bike_enabled', true);
+    }
+
+    public static function homeReelsEnabled(): bool
+    {
+        return static::getBool('home_reels_enabled', false);
+    }
+
+    public static function homeReelsAutoplay(): bool
+    {
+        return static::getBool('home_reels_autoplay', true);
+    }
+
+    public static function couponsEnabled(): bool
+    {
+        return static::getBool('coupons_enabled', true);
+    }
+
+    public static function freeShippingEnabled(): bool
+    {
+        return static::getBool('free_shipping_enabled', false);
+    }
+
+    public static function freeShippingMinAmount(): float
+    {
+        return max(0, (float) static::get('free_shipping_min_amount', 5000));
+    }
+
+    public static function qualifiesForFreeShipping(float $orderAmount): bool
+    {
+        return static::freeShippingEnabled()
+            && $orderAmount >= static::freeShippingMinAmount();
+    }
 }

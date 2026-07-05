@@ -4,51 +4,112 @@
 @section('page-subtitle', 'Manage customer accounts, wallet & loyalty')
 
 @push('scripts')
-<script type="module">
-window.renderMasterRow = (row) => `<tr class="hover:bg-slate-50">
-    <td class="px-5 py-3.5">
-        <div class="flex items-center gap-3">
-            ${row.profile_image ? `<img src="${row.profile_image}" class="w-9 h-9 rounded-full object-cover">` : `<div class="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 text-xs font-bold">${(row.name||'?')[0]}</div>`}
-            <div><p class="font-medium text-slate-900">${row.name}</p><p class="text-xs text-slate-400">${row.customer_code}</p></div>
-        </div>
-    </td>
-    <td class="px-5 py-3.5 text-sm">${row.mobile}</td>
-    <td class="px-5 py-3.5 text-sm">${row.email}</td>
-    <td class="px-5 py-3.5 text-sm">${row.registered_at}</td>
-    <td class="px-5 py-3.5 text-sm">${row.last_login}</td>
-    <td class="px-5 py-3.5 text-sm text-center">${row.total_orders}</td>
-    <td class="px-5 py-3.5 text-sm font-semibold">₹${parseFloat(row.total_spend||0).toFixed(2)}</td>
-    <td class="px-5 py-3.5 text-sm">₹${parseFloat(row.wallet_balance||0).toFixed(2)}</td>
-    <td class="px-5 py-3.5 text-sm">${row.loyalty_points}</td>
-    <td class="px-5 py-3.5"><span class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${row.status==='active'?'bg-emerald-100 text-emerald-700':row.status==='blocked'?'bg-red-100 text-red-700':'bg-slate-100 text-slate-600'}">${row.status}</span></td>
-    <td class="px-5 py-3.5 text-right">
-        <a href="/admin/customers/${row.id}" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg inline-block" title="View"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></a>
-    </td>
-</tr>`;
+<script>
+(function () {
+    const baseUrl = @json(url('/admin/customers'));
+    const tableBody = document.getElementById('master-table-body');
+    const searchInput = document.getElementById('master-search');
+    const paginationEl = document.getElementById('customers-pagination');
+    let currentPage = 1;
+    let debounceTimer = null;
 
-class CustomerListCrud extends MasterCrud {
-    async loadData() {
-        const params = new URLSearchParams();
-        ['search','status','verified','customer_type','loyalty_tier','date_from','date_to'].forEach(k => {
-            const el = document.getElementById(k === 'search' ? 'master-search' : 'filter-'+k.replace('_','-'));
-            if (el?.value) params.set(k === 'search' ? 'search' : k, el.value);
+    function renderRow(row) {
+        const initial = (row.name || '?')[0];
+        const avatar = row.profile_image
+            ? `<img src="${row.profile_image}" class="w-9 h-9 rounded-full object-cover" alt="">`
+            : `<div class="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 text-xs font-bold">${initial}</div>`;
+        const statusClass = row.status === 'active' ? 'bg-emerald-100 text-emerald-700'
+            : row.status === 'blocked' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600';
+
+        return `<tr class="hover:bg-slate-50">
+            <td class="px-5 py-3.5">
+                <div class="flex items-center gap-3">
+                    ${avatar}
+                    <div><p class="font-medium text-slate-900">${row.name}</p><p class="text-xs text-slate-400">${row.customer_code}</p></div>
+                </div>
+            </td>
+            <td class="px-5 py-3.5 text-sm">${row.mobile}</td>
+            <td class="px-5 py-3.5 text-sm">${row.email}</td>
+            <td class="px-5 py-3.5 text-sm">${row.registered_at}</td>
+            <td class="px-5 py-3.5 text-sm">${row.last_login}</td>
+            <td class="px-5 py-3.5 text-sm text-center">${row.total_orders}</td>
+            <td class="px-5 py-3.5 text-sm font-semibold">₹${parseFloat(row.total_spend || 0).toFixed(2)}</td>
+            <td class="px-5 py-3.5 text-sm">₹${parseFloat(row.wallet_balance || 0).toFixed(2)}</td>
+            <td class="px-5 py-3.5 text-sm">${row.loyalty_points}</td>
+            <td class="px-5 py-3.5"><span class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${statusClass}">${row.status}</span></td>
+            <td class="px-5 py-3.5 text-right">
+                <a href="/admin/customers/${row.id}" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg inline-block" title="View">View</a>
+            </td>
+        </tr>`;
+    }
+
+    function showLoading() {
+        tableBody.innerHTML = '<tr><td colspan="11" class="px-6 py-12 text-center text-slate-400">Loading customers...</td></tr>';
+    }
+
+    function renderPagination(meta) {
+        if (!paginationEl) return;
+        paginationEl.innerHTML = `
+            <div class="flex items-center justify-between px-5 py-4 border-t border-slate-100 text-sm text-slate-500">
+                <span>Page ${meta.current_page}${meta.to ? ' · showing ' + meta.from + '–' + meta.to : ''}</span>
+                <div class="flex gap-2">
+                    <button type="button" id="customers-prev" ${meta.prev_page_url ? '' : 'disabled'} class="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">Previous</button>
+                    <button type="button" id="customers-next" ${meta.next_page_url ? '' : 'disabled'} class="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">Next</button>
+                </div>
+            </div>`;
+        document.getElementById('customers-prev')?.addEventListener('click', () => { if (meta.prev_page_url) { currentPage--; loadCustomers(); } });
+        document.getElementById('customers-next')?.addEventListener('click', () => { if (meta.next_page_url) { currentPage++; loadCustomers(); } });
+    }
+
+    async function loadCustomers() {
+        showLoading();
+        const params = new URLSearchParams({ page: String(currentPage) });
+        if (searchInput?.value.trim()) params.set('search', searchInput.value.trim());
+        ['status', 'verified', 'customer_type', 'loyalty_tier', 'date_from', 'date_to'].forEach(k => {
+            const el = document.getElementById('filter-' + k.replace('_', '-'));
+            if (el?.value) params.set(k, el.value);
         });
-        this.tableBody.innerHTML = `<tr><td colspan="11" class="px-6 py-12 text-center text-slate-400">Loading...</td></tr>`;
+
         try {
-            const result = await this.request(`${this.baseUrl}/data?${params}`);
-            const rows = result.data.data || result.data;
-            this.renderTable(Array.isArray(rows) ? rows : []);
+            const res = await fetch(`${baseUrl}/data?${params}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const result = await res.json();
+            const payload = result.data || {};
+            const rows = Array.isArray(payload.data) ? payload.data : [];
+
+            if (!rows.length) {
+                tableBody.innerHTML = '<tr><td colspan="11" class="px-6 py-12 text-center text-slate-400">No customers found.</td></tr>';
+            } else {
+                tableBody.innerHTML = rows.map(renderRow).join('');
+            }
+
+            renderPagination({
+                current_page: payload.current_page || 1,
+                from: payload.from,
+                to: payload.to,
+                prev_page_url: payload.prev_page_url,
+                next_page_url: payload.next_page_url,
+            });
         } catch (e) {
-            this.tableBody.innerHTML = `<tr><td colspan="11" class="px-6 py-8 text-center text-red-500">Failed to load.</td></tr>`;
+            tableBody.innerHTML = '<tr><td colspan="11" class="px-6 py-8 text-center text-red-500">Failed to load customers.</td></tr>';
         }
     }
-}
-const crud = new CustomerListCrud({ baseUrl: @js(url('/admin/customers')), module: 'customers' });
-document.getElementById('apply-filters')?.addEventListener('click', () => crud.loadData());
-document.getElementById('reset-filters')?.addEventListener('click', () => {
-    document.querySelectorAll('[id^="filter-"]').forEach(el => el.value = '');
-    crud.loadData();
-});
+
+    document.getElementById('apply-filters')?.addEventListener('click', () => { currentPage = 1; loadCustomers(); });
+    document.getElementById('reset-filters')?.addEventListener('click', () => {
+        document.querySelectorAll('[id^="filter-"]').forEach(el => el.value = '');
+        if (searchInput) searchInput.value = '';
+        currentPage = 1;
+        loadCustomers();
+    });
+    searchInput?.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { currentPage = 1; loadCustomers(); }, 350);
+    });
+
+    loadCustomers();
+})();
 </script>
 @endpush
 
@@ -116,9 +177,9 @@ document.getElementById('reset-filters')?.addEventListener('click', () => {
                     <th class="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Actions</th>
                 </tr>
             </thead>
-            <tbody id="master-table-body"><tr><td colspan="11" class="px-6 py-12 text-center text-slate-400">Loading...</td></tr></tbody>
+            <tbody id="master-table-body"><tr><td colspan="11" class="px-6 py-12 text-center text-slate-400">Loading customers...</td></tr></tbody>
         </table>
     </div>
+    <div id="customers-pagination"></div>
 </div>
-<div id="master-toast" class="hidden fixed top-4 right-4 z-[100]"></div>
 @endsection

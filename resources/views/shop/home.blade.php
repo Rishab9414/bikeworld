@@ -1,6 +1,6 @@
 @extends('layouts.shop')
 
-@section('title', config('app.name') . ' — Premium Bike Accessories & Riding Gear')
+@section('title', config('seo.pages.home.title'))
 
 @section('content')
 {{-- FULL-WIDTH BANNER SLIDER (from database) --}}
@@ -91,6 +91,11 @@
 {{-- SCROLLING TICKER (database-managed) --}}
 <x-announcement-ticker :announcements="$tickerAnnouncements ?? collect()" />
 
+{{-- SHOP BY BIKE --}}
+@if($shopByBikeEnabled ?? false)
+    <x-shop-by-bike :brands="$vehicleBrands ?? collect()" />
+@endif
+
 {{-- CATEGORIES --}}
 <section class="py-16 lg:py-24 bg-brand-gray" x-data="{ shown: false }" x-init="setTimeout(() => shown = true, 150)">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -127,6 +132,11 @@
         </div>
     </div>
 </section>
+
+{{-- VIDEO REELS --}}
+@if($homeReelsEnabled ?? false)
+    <x-home-reels :reels="$homeReels ?? collect()" :autoplay="$homeReelsAutoplay ?? true" />
+@endif
 
 {{-- FEATURED PRODUCTS --}}
 @if($featuredProducts->isNotEmpty())
@@ -208,10 +218,9 @@
         <div class="text-center mb-12 transition-all duration-700" :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'">
             <h2 class="text-3xl font-black text-brand-black">WHY <span class="text-brand-red">BIKE WORLD</span>?</h2>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             @foreach([
                 ['icon' => '🛡️', 'title' => 'ISI Certified', 'desc' => 'All helmets & safety gear meet Indian safety standards'],
-                ['icon' => '🚚', 'title' => 'Fast Delivery', 'desc' => 'Pan-India shipping with Delhivery tracking'],
                 ['icon' => '💰', 'title' => 'Best Prices', 'desc' => 'Competitive pricing with regular deals & offers'],
                 ['icon' => '🎧', 'title' => 'Expert Support', 'desc' => 'Riding gear experts to help you choose right'],
             ] as $feature)

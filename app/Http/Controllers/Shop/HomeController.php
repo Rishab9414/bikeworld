@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Shop;
 
 use App\Http\Controllers\Controller;
+use App\Services\SeoService;
 use App\Models\Banner;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\HomeReel;
 use App\Models\Product;
+use App\Models\Setting;
+use App\Models\VehicleBrand;
 
 class HomeController extends Controller
 {
@@ -53,13 +57,46 @@ class HomeController extends Controller
 
         $banners = Banner::with('category')->active()->get();
 
+        $shopByBikeEnabled = Setting::shopByBikeEnabled();
+        $vehicleBrands = collect();
+
+        if ($shopByBikeEnabled) {
+            $vehicleBrands = VehicleBrand::query()
+                ->where('status', 'active')
+                ->where('show_in_shop', true)
+                ->with(['bikeModels' => fn ($q) => $q
+                    ->where('status', 'active')
+                    ->where('show_in_shop', true)
+                    ->orderBy('sort_order')
+                    ->orderBy('name')])
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get();
+        }
+
+        $homeReelsEnabled = Setting::homeReelsEnabled();
+        $homeReelsAutoplay = Setting::homeReelsAutoplay();
+        $homeReels = collect();
+
+        if ($homeReelsEnabled) {
+            $homeReels = HomeReel::with('category')->active()->get();
+        }
+
+        $seo = app(SeoService::class)->forHome();
+
         return view('shop.home', compact(
+            'seo',
             'featuredProducts',
             'trendingProducts',
             'newArrivals',
             'categories',
             'brands',
             'banners',
+            'shopByBikeEnabled',
+            'vehicleBrands',
+            'homeReelsEnabled',
+            'homeReelsAutoplay',
+            'homeReels',
         ));
     }
 }

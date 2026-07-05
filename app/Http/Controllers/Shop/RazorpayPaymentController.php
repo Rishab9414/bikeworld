@@ -36,6 +36,8 @@ class RazorpayPaymentController extends Controller
             $order->refresh();
         }
 
+        $order->loadCount('items');
+
         $checkout = $this->razorpay->checkoutOptions($order, [
             'contact' => $order->shipping_address_json['phone'] ?? null,
         ]);
@@ -56,7 +58,7 @@ class RazorpayPaymentController extends Controller
         $this->authorizeOrder($order);
 
         try {
-            $isMock = config('razorpay.mock') || str_starts_with($validated['razorpay_order_id'], 'order_mock_');
+            $isMock = $this->razorpay->usesMockMode() || str_starts_with($validated['razorpay_order_id'], 'order_mock_');
 
             if ($isMock) {
                 $this->razorpay->verifyPayment(

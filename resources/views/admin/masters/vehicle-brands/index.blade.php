@@ -6,7 +6,15 @@
 @push('scripts')
 <script type="module">
 window.renderMasterRow = (row) => `<tr class="hover:bg-slate-50">
-    <td class="px-5 py-3.5"><div class="font-medium text-slate-900">${row.name}</div><div class="text-xs text-slate-400">${row.slug || ''}</div></td>
+    <td class="px-5 py-3.5">
+        ${row.image_url
+            ? `<img src="${row.image_url}" alt="${row.name}" class="w-16 h-16 rounded-xl object-cover border border-slate-200 shadow-sm">`
+            : `<div class="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-[10px] font-medium text-center leading-tight px-1">No<br>Image</div>`}
+    </td>
+    <td class="px-5 py-3.5">
+        <div class="font-medium text-slate-900">${row.name}</div>
+        <div class="text-xs text-slate-400">${row.slug || ''}</div>
+    </td>
     <td class="px-5 py-3.5">${row.status === 'active'
         ? '<span class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">Active</span>'
         : '<span class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-700">Inactive</span>'}</td>
@@ -23,12 +31,24 @@ window.renderMasterRow = (row) => `<tr class="hover:bg-slate-50">
 <x-master-crud
     :base-url="route('admin.masters.vehicle_brands.index')"
     module="vehicle-brands"
-    :columns="[['label'=>'Name'],['label'=>'Status']]"
+    :columns="[['label'=>'Image'],['label'=>'Brand Name'],['label'=>'Status']]"
 >
     <x-slot:form>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="sm:col-span-2"><label class="block text-sm font-medium text-slate-700 mb-1">Vehicle Brand Name *</label><input name="name" required class="admin-input text-sm"></div>
-            <div><label class="block text-sm font-medium text-slate-700 mb-1">Status</label><select name="status" class="admin-input text-sm"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Vehicle Brand Name *</label>
+                <input name="name" required class="admin-input text-sm">
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Brand Photo</label>
+                <img data-image-preview="image_url" class="hidden w-28 h-28 object-cover rounded-xl border border-slate-200 mb-2" alt="Preview">
+                <input type="file" name="image_file" accept="image/jpeg,image/jpg,image/png,image/webp" data-preview-target="image_url" class="admin-input text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium">
+                <p class="text-xs text-slate-400 mt-1">Upload brand logo or bike photo (JPEG, PNG, WebP — max 4MB)</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <select name="status" class="admin-input text-sm"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+            </div>
         </div>
     </x-slot:form>
 </x-master-crud>
