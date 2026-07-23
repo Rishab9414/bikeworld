@@ -1,10 +1,7 @@
 <?php
 
-use App\Console\Commands\SyncStaleShipmentsCommand;
-use App\Jobs\SyncTrackingJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -12,17 +9,9 @@ Artisan::command('inspire', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Shipment tracking scheduler
+| Scheduler disabled
 |--------------------------------------------------------------------------
-| Primary updates come from Delhivery webhooks. This job catches shipments
-| that have not received a webhook/update within the stale window.
+| Background scheduled tasks have been removed. Shipment tracking and order
+| statuses are updated manually from the admin order screen. Jobs still run
+| synchronously (QUEUE_CONNECTION=sync), so no queue worker is required.
 */
-if (config('jobs.shipment_sync_scheduler', true)) {
-    Schedule::job(new SyncTrackingJob)
-        ->everyThirtyMinutes()
-        ->withoutOverlapping()
-        ->onOneServer()
-        ->name('sync-stale-shipments');
-}
-
-Schedule::command('queue:prune-failed', ['--hours' => 168])->daily();

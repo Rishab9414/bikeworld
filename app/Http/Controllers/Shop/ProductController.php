@@ -52,9 +52,21 @@ class ProductController extends Controller
     {
         abort_unless($product->is_active, 404);
 
-        $product->load(['category', 'brand']);
+        $product->load(['category', 'brand', 'approvedReviews.customer']);
 
         $seo = app(SeoService::class)->forProduct($product);
+        $reviewSummary = app(\App\Services\ProductReviewService::class)->summaryForProduct($product);
+        $canReview = false;
+        $reviewOrderItemId = null;
+
+        if (auth()->check()) {
+            $customer = \App\Models\Customer::where('user_id', auth()->id())->first();
+            if ($customer) {
+                $orderItem = app(\App\Services\ProductReviewService::class)->findReviewableOrderItem($product, $customer);
+                $canReview = $orderItem !== null;
+                $reviewOrderItemId = $orderItem?->id;
+            }
+        }
 
         $relatedProducts = Product::where('is_active', true)
             ->where('category_id', $product->category_id)
@@ -62,6 +74,13 @@ class ProductController extends Controller
             ->take(4)
             ->get();
 
-        return view('shop.products.show', compact('product', 'relatedProducts', 'seo'));
+        return view('shop.products.show', compact(
+            'product',
+            'relatedProducts',
+            'seo',
+            'reviewSummary',
+            'canReview',
+            'reviewOrderItemId',
+        ));
     }
 }

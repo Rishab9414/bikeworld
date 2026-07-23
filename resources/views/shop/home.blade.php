@@ -3,6 +3,11 @@
 @section('title', config('seo.pages.home.title'))
 
 @section('content')
+{{-- FESTIVAL / OFFER POPUP (managed from admin) --}}
+@if(!empty($promoPopup))
+<x-promo-popup :popup="$promoPopup" />
+@endif
+
 {{-- FULL-WIDTH BANNER SLIDER (from database) --}}
 @if($banners->isNotEmpty())
 <section

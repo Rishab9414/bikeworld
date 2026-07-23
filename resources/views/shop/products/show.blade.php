@@ -40,9 +40,16 @@
 
         <div>
             <p class="text-brand-red font-semibold text-sm uppercase tracking-wide mb-2">{{ $product->category->name }}</p>
-            <div class="flex items-start justify-between gap-4 mb-4">
+            <div class="flex items-start justify-between gap-4 mb-2">
                 <h1 class="text-3xl font-black text-brand-black tracking-tight">{{ $product->name }}</h1>
             </div>
+
+            @if($reviewSummary['count'] > 0)
+            <div class="flex items-center gap-2 mb-4">
+                <x-star-rating :rating="$reviewSummary['average']" size="md" />
+                <span class="text-sm text-zinc-600">{{ $reviewSummary['average'] }} · {{ $reviewSummary['count'] }} {{ Str::plural('review', $reviewSummary['count']) }}</span>
+            </div>
+            @endif
 
             <div class="flex items-center gap-3 mb-6">
                 <span class="text-3xl font-black text-brand-black">@money($price)</span>
@@ -83,6 +90,43 @@
             @endif
         </div>
     </div>
+
+    {{-- Reviews --}}
+    <section class="mt-16 border-t border-zinc-100 pt-12">
+        <h2 class="text-2xl font-black text-brand-black mb-6">Customer Reviews</h2>
+
+        @if(session('success'))
+            <div class="mb-6 p-4 bg-emerald-50 text-emerald-800 rounded-xl text-sm border border-emerald-100">{{ session('success') }}</div>
+        @endif
+
+        @auth
+            @if($canReview)
+                <div class="mb-8 max-w-xl">
+                    <x-review-form :product="$product" :order-item-id="$reviewOrderItemId" />
+                </div>
+            @elseif(auth()->check())
+                <p class="text-sm text-zinc-500 mb-8">Purchase and receive this product to leave a verified review.</p>
+            @endif
+        @else
+            <p class="text-sm text-zinc-500 mb-8"><a href="{{ route('login') }}" class="text-brand-red font-semibold hover:underline">Sign in</a> to write a review after delivery.</p>
+        @endauth
+
+        @forelse($product->approvedReviews as $review)
+        <div class="border-b border-zinc-100 py-6 last:border-0">
+            <div class="flex flex-wrap items-center gap-3 mb-2">
+                <x-star-rating :rating="$review->rating" />
+                @if($review->verified_purchase)
+                    <span class="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-semibold">Verified Purchase</span>
+                @endif
+                <span class="text-sm text-zinc-500">{{ $review->customer?->full_name ?? 'Customer' }} · {{ $review->created_at->format('M d, Y') }}</span>
+            </div>
+            @if($review->title)<p class="font-bold text-brand-black mb-1">{{ $review->title }}</p>@endif
+            <p class="text-zinc-600 text-sm leading-relaxed">{{ $review->review }}</p>
+        </div>
+        @empty
+        <p class="text-zinc-500 py-4">No reviews yet. Be the first to review this product!</p>
+        @endforelse
+    </section>
 
     @if($relatedProducts->isNotEmpty())
         <section class="mt-16">

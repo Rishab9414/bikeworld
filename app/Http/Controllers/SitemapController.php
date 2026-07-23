@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogPost;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\VehicleBrand;
@@ -14,6 +15,8 @@ class SitemapController extends Controller
         $urls = collect([
             ['loc' => route('home'), 'priority' => '1.0', 'changefreq' => 'daily'],
             ['loc' => route('products.index'), 'priority' => '0.9', 'changefreq' => 'daily'],
+            ['loc' => route('blog.index'), 'priority' => '0.8', 'changefreq' => 'weekly'],
+            ['loc' => route('search.index'), 'priority' => '0.5', 'changefreq' => 'monthly'],
         ]);
 
         foreach (Category::where('is_active', true)->get() as $category) {
@@ -40,6 +43,15 @@ class SitemapController extends Controller
                 'changefreq' => 'monthly',
             ]);
         }
+
+        BlogPost::published()->get(['slug', 'updated_at'])->each(function ($post) use ($urls) {
+            $urls->push([
+                'loc' => route('blog.show', $post),
+                'lastmod' => $post->updated_at?->toAtomString(),
+                'priority' => '0.7',
+                'changefreq' => 'monthly',
+            ]);
+        });
 
         VehicleBrand::query()
             ->where('status', 'active')

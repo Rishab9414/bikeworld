@@ -117,15 +117,33 @@ class OrderController extends Controller
         return response()->json(['success' => true, 'message' => 'Order confirmed and stock reserved.', 'status' => $order->fresh()->status]);
     }
 
+    public function updateStatus(Request $request, Order $order, OrderService $orders): JsonResponse
+    {
+        $data = $request->validate([
+            'status' => ['required', 'in:pending,confirmed,packing,packed,shipped,out_for_delivery,delivered,cancelled,returned,refunded,completed'],
+            'remarks' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $label = ucwords(str_replace('_', ' ', $data['status']));
+        $orders->updateStatus($order, $data['status'], $label, $data['remarks'] ?? null, 'admin');
+        ActivityLogger::log('updated', 'orders', $order, "Order {$order->order_number} status manually set to {$data['status']}");
+
+        return response()->json([
+            'success' => true,
+            'message' => "Order status updated to {$label}.",
+            'status' => $order->fresh()->status,
+        ]);
+    }
+
     public function createShipment(Order $order): JsonResponse
     {
         if (! in_array($order->status, ['confirmed', 'packing', 'packed'], true)) {
             return response()->json(['success' => false, 'message' => 'Order must be confirmed before creating shipment.'], 422);
         }
 
-        CreateShipmentJob::dispatch($order->id, auth()->id());
+        CreateShipmentJob::dispatchSync($order->id, auth()->id());
 
-        return response()->json(['success' => true, 'message' => 'Shipment creation queued. Refresh in a moment.']);
+        return response()->json(['success' => true, 'message' => 'Shipment created.', 'reload' => true]);
     }
 
     /** @deprecated Use createShipment — kept for backwards compatibility */
@@ -136,9 +154,9 @@ class OrderController extends Controller
 
     public function generateInvoice(Order $order): JsonResponse
     {
-        GenerateInvoiceJob::dispatch($order->id, auth()->id());
+        GenerateInvoiceJob::dispatchSync($order->id, auth()->id());
 
-        return response()->json(['success' => true, 'message' => 'Invoice generation queued. Refresh in a moment.']);
+        return response()->json(['success' => true, 'message' => 'Invoice generated.', 'reload' => true]);
     }
 
     public function printInvoice(Order $order, OrderService $orders): View
@@ -161,9 +179,9 @@ class OrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Create shipment first.'], 422);
         }
 
-        GenerateLabelJob::dispatch($shipment->id, auth()->id());
+        GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
 
-        return response()->json(['success' => true, 'message' => 'Label generation queued. Refresh in a moment.']);
+        return response()->json(['success' => true, 'message' => 'Label generated.', 'reload' => true]);
     }
 
     public function printLabel(Order $order, DelhiveryService $delhivery)
@@ -200,9 +218,9 @@ class OrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Create shipment first.'], 422);
         }
 
-        SchedulePickupJob::dispatch($shipment->id, auth()->id());
+        SchedulePickupJob::dispatchSync($shipment->id, auth()->id());
 
-        return response()->json(['success' => true, 'message' => 'Pickup scheduling queued. Refresh in a moment.']);
+        return response()->json(['success' => true, 'message' => 'Pickup scheduled.', 'reload' => true]);
     }
 
     public function trackShipment(Order $order): JsonResponse
@@ -213,11 +231,12 @@ class OrderController extends Controller
             return response()->json(['success' => false, 'message' => 'No shipment found.'], 404);
         }
 
-        TrackShipmentJob::dispatch($shipment->id);
+        TrackShipmentJob::dispatchSync($shipment->id);
 
         return response()->json([
             'success' => true,
-            'message' => 'Tracking sync queued.',
+            'message' => 'Tracking updated.',
+            'reload' => true,
             'tracking_url' => $shipment->tracking_url,
             'waybill' => $shipment->waybill,
         ]);
@@ -231,9 +250,9 @@ class OrderController extends Controller
             return response()->json(['success' => false, 'message' => 'No shipment found.'], 404);
         }
 
-        CancelShipmentJob::dispatch($shipment->id, $order->id, auth()->id());
+        CancelShipmentJob::dispatchSync($shipment->id, $order->id, auth()->id());
 
-        return response()->json(['success' => true, 'message' => 'Shipment cancellation queued.']);
+        return response()->json(['success' => true, 'message' => 'Shipment cancelled.', 'reload' => true]);
     }
 
     public function cancel(Order $order, OrderService $orders): JsonResponse

@@ -45,6 +45,8 @@ class MasterDataSeeder extends Seeder
             'users' => ['manage-admin-users', 'manage-roles', 'manage-permissions', 'view-login-history', 'view-activity-logs'],
             'products' => ['manage-products', 'manage-inventory'],
             'orders' => ['manage-orders', 'manage-returns'],
+            'customers' => ['manage-customers'],
+            'marketing' => ['manage-marketing'],
             'reports' => ['view-reports'],
             'settings' => ['manage-settings'],
         ];

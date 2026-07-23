@@ -88,7 +88,7 @@ class RazorpayPaymentController extends Controller
         }
 
         return redirect()
-            ->route('orders.show', $order)
+            ->route('orders.confirmation', $order)
             ->with('success', 'Payment successful! Your order has been placed.');
     }
 

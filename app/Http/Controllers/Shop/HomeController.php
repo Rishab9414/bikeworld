@@ -9,6 +9,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\HomeReel;
 use App\Models\Product;
+use App\Models\PromoPopup;
 use App\Models\Setting;
 use App\Models\VehicleBrand;
 
@@ -82,10 +83,13 @@ class HomeController extends Controller
             $homeReels = HomeReel::with('category')->active()->get();
         }
 
+        $promoPopup = PromoPopup::current();
+
         $seo = app(SeoService::class)->forHome();
 
         return view('shop.home', compact(
             'seo',
+            'promoPopup',
             'featuredProducts',
             'trendingProducts',
             'newArrivals',

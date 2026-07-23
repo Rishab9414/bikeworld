@@ -37,9 +37,19 @@
                     <img src="{{ asset('images/logo.png') }}" alt="{{ config('app.name') }}" class="h-10 lg:h-12 w-auto max-w-full object-contain">
                 </a>
 
+                <form action="{{ route('search.index') }}" method="GET" class="hidden lg:flex flex-1 max-w-lg mx-4 min-w-0">
+                    <div class="relative w-full">
+                        <input type="search" name="q" value="{{ request('q') }}"
+                            placeholder="Search helmets, gloves, accessories…"
+                            class="w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-4 py-2.5 text-sm focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 outline-none">
+                        <svg class="w-5 h-5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                </form>
+
                 <div class="hidden lg:flex items-center gap-8">
                     <a href="{{ route('home') }}" class="text-sm font-semibold {{ request()->routeIs('home') ? 'text-brand-red' : 'text-brand-black hover:text-brand-red' }} transition-colors">Home</a>
                     <a href="{{ route('products.index') }}" class="text-sm font-semibold {{ request()->routeIs('products.*') && ! request('category') ? 'text-brand-red' : 'text-brand-black hover:text-brand-red' }} transition-colors">Shop All</a>
+                    <a href="{{ route('blog.index') }}" class="text-sm font-semibold {{ request()->routeIs('blog.*') ? 'text-brand-red' : 'text-brand-black hover:text-brand-red' }} transition-colors">Blog</a>
 
                     @if(($menuCategories ?? collect())->isNotEmpty())
                     <div class="relative" x-data="{ open: false }" @click.outside="open = false">
@@ -93,8 +103,13 @@
             </div>
         </div>
         <div x-show="mobileOpen" x-cloak class="lg:hidden border-t border-zinc-100 bg-white px-4 py-4 space-y-3">
+            <form action="{{ route('search.index') }}" method="GET" class="pb-2">
+                <input type="search" name="q" value="{{ request('q') }}" placeholder="Search products…"
+                    class="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 outline-none">
+            </form>
             <a href="{{ route('home') }}" class="block text-sm font-semibold py-2">Home</a>
             <a href="{{ route('products.index') }}" class="block text-sm font-semibold py-2">Shop All</a>
+            <a href="{{ route('blog.index') }}" class="block text-sm font-semibold py-2">Blog</a>
 
             @if(($menuCategories ?? collect())->isNotEmpty())
             <div x-data="{ catOpen: false }">

@@ -303,7 +303,7 @@ class CheckoutController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('orders.show', $order)->with('success', 'Order placed successfully!');
+        return redirect()->route('orders.confirmation', $order);
     }
 
     private function orderAmountForShipping($items, ?array $taxSummary = null): float

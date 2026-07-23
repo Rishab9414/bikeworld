@@ -82,4 +82,54 @@ class User extends Authenticatable
     {
         return $this->is_admin;
     }
+
+    public function isSuperAdmin(): bool
+    {
+        return optional($this->role)->slug === 'super-admin';
+    }
+
+    protected function activeRolePermissions(): \Illuminate\Support\Collection
+    {
+        if (! $this->role_id) {
+            return collect();
+        }
+
+        $this->loadMissing('role.permissions');
+
+        if (! $this->role || ! $this->role->status) {
+            return collect();
+        }
+
+        return $this->role->permissions;
+    }
+
+    public function hasPermission(string $slug): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        return $this->activeRolePermissions()->contains('slug', $slug);
+    }
+
+    public function hasAnyPermission(array $slugs): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        return $this->activeRolePermissions()
+            ->pluck('slug')
+            ->intersect($slugs)
+            ->isNotEmpty();
+    }
+
+    public function hasPermissionGroup(string $group): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        return $this->activeRolePermissions()->contains('group', $group);
+    }
 }

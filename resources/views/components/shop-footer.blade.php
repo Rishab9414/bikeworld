@@ -36,6 +36,7 @@
                         <li><a href="{{ route('products.index', ['category' => 'gloves']) }}" class="hover:text-white transition-colors">Gloves</a></li>
                     @endforelse
                     <li><a href="{{ route('cart.index') }}" class="hover:text-white transition-colors">Cart</a></li>
+                    <li><a href="{{ route('blog.index') }}" class="hover:text-white transition-colors {{ request()->routeIs('blog.*') ? 'text-brand-red' : '' }}">Blog</a></li>
                 </ul>
             </div>
 

@@ -79,12 +79,23 @@ class Product extends Model
     public function bikeModels(): BelongsToMany { return $this->belongsToMany(BikeModel::class, 'product_bike_model'); }
     public function cartItems(): HasMany { return $this->hasMany(CartItem::class); }
     public function orderItems(): HasMany { return $this->hasMany(OrderItem::class); }
+    public function reviews(): HasMany { return $this->hasMany(ProductReview::class); }
 
     public function isInStock(): bool { return $this->stock > 0; }
 
     public function formattedPrice(): string
     {
         return '₹'.number_format($this->price, 2);
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
+
+    public function approvedReviews(): HasMany
+    {
+        return $this->reviews()->where('status', 'approved')->latest();
     }
 
     public function displayImage(): ?string

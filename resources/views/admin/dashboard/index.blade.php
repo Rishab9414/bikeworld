@@ -5,8 +5,10 @@
 @section('page-subtitle', 'Welcome back, ' . auth()->user()->name . '! Here\'s what\'s happening today.')
 
 @section('content')
+@php $u = auth()->user(); @endphp
 {{-- Stats Grid --}}
 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-5 mb-8">
+    @if($u->hasPermissionGroup('reports'))
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
@@ -24,7 +26,9 @@
             All time earnings
         </p>
     </div>
+    @endif
 
+    @if($u->hasPermissionGroup('orders'))
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
@@ -39,7 +43,9 @@
         </div>
         <p class="text-xs text-indigo-600 font-medium mt-3">{{ $stats['pending_orders'] }} pending</p>
     </div>
+    @endif
 
+    @if($u->hasPermissionGroup('products'))
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
@@ -54,7 +60,9 @@
         </div>
         <p class="text-xs text-amber-600 font-medium mt-3">{{ $stats['low_stock'] }} low stock</p>
     </div>
+    @endif
 
+    @if($u->hasPermissionGroup('customers'))
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
@@ -69,7 +77,9 @@
         </div>
         <p class="text-xs text-slate-500 font-medium mt-3">Registered users</p>
     </div>
+    @endif
 
+    @if($u->hasPermissionGroup('orders'))
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
@@ -84,7 +94,9 @@
         </div>
         <p class="text-xs text-amber-600 font-medium mt-3">Needs attention</p>
     </div>
+    @endif
 
+    @if($u->hasPermissionGroup('masters'))
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
@@ -99,9 +111,12 @@
         </div>
         <p class="text-xs text-slate-500 font-medium mt-3">Active categories</p>
     </div>
+    @endif
 </div>
 
+@if($u->hasPermissionGroup('reports') || $u->hasPermissionGroup('orders') || $u->hasPermissionGroup('masters'))
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+    @if($u->hasPermissionGroup('reports'))
     {{-- Revenue Chart --}}
     <div class="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <div class="flex items-center justify-between mb-6">
@@ -132,8 +147,12 @@
         @endif
     </div>
 
+    @endif
+
+    @if($u->hasPermissionGroup('orders') || $u->hasPermissionGroup('masters'))
     {{-- Order Status --}}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        @if($u->hasPermissionGroup('orders'))
         <h3 class="text-lg font-bold text-slate-900 mb-1">Order Status</h3>
         <p class="text-sm text-slate-500 mb-6">Breakdown by status</p>
         @php
@@ -164,8 +183,10 @@
                 @endforeach
             </div>
         @endif
+        @endif
 
-        <div class="mt-6 pt-6 border-t border-slate-100">
+        @if($u->hasPermissionGroup('masters'))
+        <div class="{{ $u->hasPermissionGroup('orders') ? 'mt-6 pt-6 border-t border-slate-100' : '' }}">
             <h4 class="text-sm font-semibold text-slate-700 mb-3">Top Categories</h4>
             <div class="space-y-2">
                 @foreach($topCategories as $category)
@@ -176,9 +197,13 @@
                 @endforeach
             </div>
         </div>
+        @endif
     </div>
+    @endif
 </div>
+@endif
 
+@if($u->hasPermissionGroup('orders'))
 {{-- Recent Orders --}}
 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
     <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
@@ -248,4 +273,12 @@
         </div>
     @endif
 </div>
+@endif
+
+@if(! ($u->hasPermissionGroup('orders') || $u->hasPermissionGroup('products') || $u->hasPermissionGroup('customers') || $u->hasPermissionGroup('reports') || $u->hasPermissionGroup('masters')))
+<div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center text-slate-500">
+    <p class="font-semibold text-slate-700">Welcome, {{ $u->name }}</p>
+    <p class="text-sm mt-1">Use the menu on the left to manage your assigned sections.</p>
+</div>
+@endif
 @endsection

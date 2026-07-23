@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AnnouncementController;
+use App\Http\Controllers\Admin\BlogController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\HomeReelController;
 use App\Http\Controllers\Admin\AdminUserController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Admin\Masters\UnitController;
 use App\Http\Controllers\Admin\Masters\VehicleBrandController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\PromoPopupController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\StoreSettingsController;
@@ -39,14 +41,14 @@ Route::middleware('admin.auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     // Reports
-    Route::prefix('reports')->name('reports.')->group(function () {
+    Route::middleware('permission:reports')->prefix('reports')->name('reports.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::get('/{type}/export', [ReportController::class, 'export'])->name('export');
         Route::get('/{type}', [ReportController::class, 'show'])->name('show');
     });
 
     // User Management
-    Route::prefix('users')->name('users.')->group(function () {
+    Route::middleware('permission:users')->prefix('users')->name('users.')->group(function () {
         Route::get('/admin-users', [AdminUserController::class, 'index'])->name('admin-users.index');
         Route::get('/admin-users/data', [AdminUserController::class, 'data'])->name('admin-users.data');
         Route::get('/admin-users/roles-list', [AdminUserController::class, 'rolesList'])->name('admin-users.roles-list');
@@ -79,11 +81,12 @@ Route::middleware('admin.auth')->group(function () {
     });
 
     // Orders
-    Route::prefix('orders')->name('orders.')->group(function () {
+    Route::middleware('permission:orders')->prefix('orders')->name('orders.')->group(function () {
         Route::get('/', [OrderController::class, 'index'])->name('index');
         Route::get('/data', [OrderController::class, 'data'])->name('data');
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         Route::patch('/{order}/confirm', [OrderController::class, 'confirm'])->name('confirm');
+        Route::post('/{order}/update-status', [OrderController::class, 'updateStatus'])->name('update-status');
         Route::post('/{order}/create-shipment', [OrderController::class, 'createShipment'])->name('create-shipment');
         Route::post('/{order}/create-shipment-sync', [OrderController::class, 'createShipmentSync'])->name('create-shipment-sync');
         Route::post('/{order}/generate-invoice', [OrderController::class, 'generateInvoice'])->name('generate-invoice');
@@ -99,7 +102,7 @@ Route::middleware('admin.auth')->group(function () {
     });
 
     // Customers
-    Route::prefix('customers')->name('customers.')->group(function () {
+    Route::middleware('permission:customers')->prefix('customers')->name('customers.')->group(function () {
         Route::get('/', [CustomerController::class, 'index'])->name('index');
         Route::get('/data', [CustomerController::class, 'data'])->name('data');
         Route::get('/export', [CustomerController::class, 'export'])->name('export');
@@ -117,7 +120,7 @@ Route::middleware('admin.auth')->group(function () {
     });
 
     // Homepage Banners
-    Route::prefix('banners')->name('banners.')->group(function () {
+    Route::middleware('permission:marketing')->prefix('banners')->name('banners.')->group(function () {
         Route::get('/', [BannerController::class, 'index'])->name('index');
         Route::get('/create', [BannerController::class, 'create'])->name('create');
         Route::post('/', [BannerController::class, 'store'])->name('store');
@@ -126,8 +129,18 @@ Route::middleware('admin.auth')->group(function () {
         Route::delete('/{banner}', [BannerController::class, 'destroy'])->name('destroy');
     });
 
+    // Homepage Promo Popup (festival / offer)
+    Route::middleware('permission:marketing')->prefix('promo-popups')->name('promo-popups.')->group(function () {
+        Route::get('/', [PromoPopupController::class, 'index'])->name('index');
+        Route::get('/create', [PromoPopupController::class, 'create'])->name('create');
+        Route::post('/', [PromoPopupController::class, 'store'])->name('store');
+        Route::get('/{promoPopup}/edit', [PromoPopupController::class, 'edit'])->name('edit');
+        Route::put('/{promoPopup}', [PromoPopupController::class, 'update'])->name('update');
+        Route::delete('/{promoPopup}', [PromoPopupController::class, 'destroy'])->name('destroy');
+    });
+
     // Homepage Reels
-    Route::prefix('home-reels')->name('home-reels.')->group(function () {
+    Route::middleware('permission:marketing')->prefix('home-reels')->name('home-reels.')->group(function () {
         Route::get('/', [HomeReelController::class, 'index'])->name('index');
         Route::get('/create', [HomeReelController::class, 'create'])->name('create');
         Route::post('/', [HomeReelController::class, 'store'])->name('store');
@@ -137,7 +150,7 @@ Route::middleware('admin.auth')->group(function () {
     });
 
     // Coupons
-    Route::prefix('coupons')->name('coupons.')->group(function () {
+    Route::middleware('permission:marketing')->prefix('coupons')->name('coupons.')->group(function () {
         Route::get('/', [CouponController::class, 'index'])->name('index');
         Route::get('/create', [CouponController::class, 'create'])->name('create');
         Route::post('/', [CouponController::class, 'store'])->name('store');
@@ -147,7 +160,7 @@ Route::middleware('admin.auth')->group(function () {
     });
 
     // Store Announcements (top bar + ticker)
-    Route::prefix('announcements')->name('announcements.')->group(function () {
+    Route::middleware('permission:marketing')->prefix('announcements')->name('announcements.')->group(function () {
         Route::get('/', [AnnouncementController::class, 'index'])->name('index');
         Route::get('/create', [AnnouncementController::class, 'create'])->name('create');
         Route::post('/', [AnnouncementController::class, 'store'])->name('store');
@@ -156,8 +169,18 @@ Route::middleware('admin.auth')->group(function () {
         Route::delete('/{announcement}', [AnnouncementController::class, 'destroy'])->name('destroy');
     });
 
+    // Blog (SEO content)
+    Route::middleware('permission:marketing')->prefix('blog')->name('blog.')->group(function () {
+        Route::get('/', [BlogController::class, 'index'])->name('index');
+        Route::get('/create', [BlogController::class, 'create'])->name('create');
+        Route::post('/', [BlogController::class, 'store'])->name('store');
+        Route::get('/{post}/edit', [BlogController::class, 'edit'])->name('edit');
+        Route::put('/{post}', [BlogController::class, 'update'])->name('update');
+        Route::delete('/{post}', [BlogController::class, 'destroy'])->name('destroy');
+    });
+
     // Store Settings
-    Route::prefix('settings')->name('settings.')->group(function () {
+    Route::middleware('permission:settings')->prefix('settings')->name('settings.')->group(function () {
         Route::get('/payments', [StoreSettingsController::class, 'payments'])->name('payments');
         Route::put('/payments', [StoreSettingsController::class, 'updatePayments'])->name('payments.update');
         Route::get('/tax', [StoreSettingsController::class, 'tax'])->name('tax');
@@ -167,7 +190,7 @@ Route::middleware('admin.auth')->group(function () {
     });
 
     // Products
-    Route::prefix('products')->name('products.')->group(function () {
+    Route::middleware('permission:products')->prefix('products')->name('products.')->group(function () {
         Route::get('/', [ProductController::class, 'index'])->name('index');
         Route::get('/data', [ProductController::class, 'data'])->name('data');
         Route::get('/options', [ProductController::class, 'options'])->name('options');
@@ -195,7 +218,7 @@ Route::middleware('admin.auth')->group(function () {
 
     foreach ($masters as $uri => $controller) {
         $name = str_replace('-', '_', $uri);
-        Route::prefix("masters/{$uri}")->name("masters.{$name}.")->group(function () use ($controller) {
+        Route::middleware('permission:masters')->prefix("masters/{$uri}")->name("masters.{$name}.")->group(function () use ($controller) {
             Route::get('/', [$controller, 'index'])->name('index');
             Route::get('/data', [$controller, 'data'])->name('data');
             Route::get('/{id}', [$controller, 'show'])->name('show');

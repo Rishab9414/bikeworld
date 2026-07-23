@@ -71,7 +71,55 @@ class AccountController extends Controller
     public function storeAddress(Request $request)
     {
         $customer = $this->customer();
-        $data = $request->validate([
+        $data = $this->validateAddress($request);
+
+        $this->applyDefaultFlags($customer, $request, $data);
+        $customer->addresses()->create($data);
+
+        return back()->with('success', 'Address added successfully.');
+    }
+
+    public function updateAddress(Request $request, int $address)
+    {
+        $customer = $this->customer();
+        $record = $customer->addresses()->findOrFail($address);
+        $data = $this->validateAddress($request);
+
+        $this->applyDefaultFlags($customer, $request, $data, $record->id);
+        $record->update($data);
+
+        return back()->with('success', 'Address updated successfully.');
+    }
+
+    public function destroyAddress(int $address)
+    {
+        $customer = $this->customer();
+        $record = $customer->addresses()->findOrFail($address);
+        $record->delete();
+
+        return back()->with('success', 'Address removed.');
+    }
+
+    public function defaultAddress(Request $request, int $address)
+    {
+        $customer = $this->customer();
+        $record = $customer->addresses()->findOrFail($address);
+        $type = $request->validate(['type' => ['required', 'in:shipping,billing']])['type'];
+
+        if ($type === 'shipping') {
+            $customer->addresses()->update(['is_default_shipping' => false]);
+            $record->update(['is_default_shipping' => true]);
+        } else {
+            $customer->addresses()->update(['is_default_billing' => false]);
+            $record->update(['is_default_billing' => true]);
+        }
+
+        return back()->with('success', 'Default address updated.');
+    }
+
+    private function validateAddress(Request $request): array
+    {
+        return $request->validate([
             'address_type' => ['required', 'in:home,office,other'],
             'full_name' => ['required', 'string', 'max:255'],
             'mobile' => ['required', 'string', 'max:20'],
@@ -86,19 +134,21 @@ class AccountController extends Controller
             'is_default_shipping' => ['nullable', 'boolean'],
             'is_default_billing' => ['nullable', 'boolean'],
         ]);
+    }
 
+    private function applyDefaultFlags(Customer $customer, Request $request, array &$data, ?int $exceptId = null): void
+    {
         if ($request->boolean('is_default_shipping')) {
-            $customer->addresses()->update(['is_default_shipping' => false]);
+            $customer->addresses()->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
+                ->update(['is_default_shipping' => false]);
         }
         if ($request->boolean('is_default_billing')) {
-            $customer->addresses()->update(['is_default_billing' => false]);
+            $customer->addresses()->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
+                ->update(['is_default_billing' => false]);
         }
 
         $data['is_default_shipping'] = $request->boolean('is_default_shipping');
         $data['is_default_billing'] = $request->boolean('is_default_billing');
-        $customer->addresses()->create($data);
-
-        return back()->with('success', 'Address added successfully.');
     }
 
     public function wishlist(): View

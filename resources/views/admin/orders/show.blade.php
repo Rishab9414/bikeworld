@@ -110,6 +110,30 @@
             <div class="flex justify-between text-sm"><span>Payment</span><span class="font-semibold capitalize">{{ $o->payment_status }} ({{ $o->payment_method }})</span></div>
         </div>
 
+        <div class="bg-white rounded-2xl border p-6 mb-4">
+            <h3 class="font-bold mb-3">Manual Status Update</h3>
+            <p class="text-xs text-slate-400 mb-2">Override the order status directly (independent of Delhivery). The customer/admin timeline is updated.</p>
+            <select id="manual-status" class="w-full rounded-xl border-slate-200 text-sm focus:border-indigo-500 focus:ring-indigo-500 mb-2">
+                @foreach([
+                    'pending' => 'Pending',
+                    'confirmed' => 'Confirmed',
+                    'packing' => 'Packing',
+                    'packed' => 'Packed',
+                    'shipped' => 'Shipped',
+                    'out_for_delivery' => 'Out for Delivery',
+                    'delivered' => 'Delivered',
+                    'completed' => 'Completed',
+                    'cancelled' => 'Cancelled',
+                    'returned' => 'Returned',
+                    'refunded' => 'Refunded',
+                ] as $value => $label)
+                <option value="{{ $value }}" @selected($o->status === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <input type="text" id="manual-status-remarks" placeholder="Remarks (optional)" class="w-full rounded-xl border-slate-200 text-sm focus:border-indigo-500 focus:ring-indigo-500 mb-2">
+            <button id="manual-status-btn" class="w-full px-4 py-2.5 text-sm font-semibold bg-slate-800 text-white rounded-xl hover:bg-slate-900">Update Status</button>
+        </div>
+
         <div class="bg-white rounded-2xl border p-6 space-y-2" id="order-actions">
             <h3 class="font-bold mb-3">Actions</h3>
             <button data-action="confirm" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100">✓ Confirm Order</button>
@@ -147,6 +171,25 @@ const routes = {
     refund: { method: 'POST', url: `${base}/refund` },
     cancel: { method: 'POST', url: `${base}/cancel` },
 };
+const manualBtn = document.getElementById('manual-status-btn');
+if (manualBtn) {
+    manualBtn.addEventListener('click', async () => {
+        const status = document.getElementById('manual-status').value;
+        const remarks = document.getElementById('manual-status-remarks').value;
+        if (!confirm(`Set order status to "${status.replace(/_/g,' ')}"?`)) return;
+        try {
+            const res = await fetch(`${base}/update-status`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status, remarks }),
+            });
+            const json = await res.json();
+            alert(json.message || (json.success ? 'Updated.' : 'Failed'));
+            if (json.success) location.reload();
+        } catch (e) { alert(e.message); }
+    });
+}
+
 document.querySelectorAll('.action-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
         const action = btn.dataset.action;
@@ -155,8 +198,8 @@ document.querySelectorAll('.action-btn').forEach(btn => {
         try {
             const res = await fetch(r.url, { method: r.method, headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json' } });
             const json = await res.json();
-            alert(json.message || (json.success ? 'Queued — refresh in a moment.' : 'Failed'));
-            if (json.success && !['track', 'generate-invoice', 'generate-label', 'create-shipment', 'schedule-pickup', 'cancel-shipment'].includes(action)) location.reload();
+            alert(json.message || (json.success ? 'Done.' : 'Failed'));
+            if (json.success) location.reload();
         } catch (e) { alert(e.message); }
     });
 });
