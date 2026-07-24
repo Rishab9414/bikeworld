@@ -1,0 +1,21 @@
+# Hostinger / shared hosting — route all requests into Laravel's public/ folder.
+# Upload the full project into public_html, then this file sits at the web root.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Prefer HTTPS (Hostinger SSL / Let's Encrypt)
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Block direct access to sensitive paths outside public/
+    RewriteRule ^(app|bootstrap|config|database|resources|routes|storage|tests|vendor)/ - [F,L,NC]
+    RewriteRule ^(\.env|\.git|composer\.(json|lock)|artisan|phpunit\.xml) - [F,L,NC]
+
+    # Send everything else to public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Deny listing
+Options -Indexes

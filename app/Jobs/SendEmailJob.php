@@ -41,6 +41,11 @@ class SendEmailJob implements ShouldQueue
 
     public function failed(\Throwable $e): void
     {
+        // Allow a future retry of the same event after a permanent job failure.
+        \App\Models\OrderEmailLog::where('order_id', $this->orderId)
+            ->where('event', $this->event)
+            ->delete();
+
         Log::error('SendEmailJob failed', [
             'order_id' => $this->orderId,
             'event' => $this->event,

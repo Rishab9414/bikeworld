@@ -55,6 +55,24 @@
                                 <td style="padding:6px 0;font-size:14px;color:#71717A;">Payment</td>
                                 <td align="right" style="padding:6px 0;font-size:14px;color:#0A0A0A;font-weight:600;">{{ $order->paymentStatusLabel() }} · {{ strtoupper($order->payment_method ?? 'COD') }}</td>
                             </tr>
+                            @if($order->razorpay_payment_id)
+                            <tr>
+                                <td style="padding:6px 0;font-size:14px;color:#71717A;">Payment ID</td>
+                                <td align="right" style="padding:6px 0;font-size:13px;color:#0A0A0A;font-weight:600;">{{ $order->razorpay_payment_id }}</td>
+                            </tr>
+                            @endif
+                            @if($order->paid_at)
+                            <tr>
+                                <td style="padding:6px 0;font-size:14px;color:#71717A;">Paid On</td>
+                                <td align="right" style="padding:6px 0;font-size:14px;color:#0A0A0A;font-weight:600;">{{ $order->paid_at->format('d M Y, h:i A') }}</td>
+                            </tr>
+                            @endif
+                            @if($order->customer?->mobile)
+                            <tr>
+                                <td style="padding:6px 0;font-size:14px;color:#71717A;">Phone</td>
+                                <td align="right" style="padding:6px 0;font-size:14px;color:#0A0A0A;font-weight:600;">{{ $order->customer->mobile }}</td>
+                            </tr>
+                            @endif
                             @if($waybill)
                             <tr>
                                 <td style="padding:6px 0;font-size:14px;color:#71717A;">AWB / Tracking</td>

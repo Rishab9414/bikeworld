@@ -12,9 +12,11 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AdminSeeder::class,
             MasterDataSeeder::class,
+            RbacSyncSeeder::class,
             ProductSeeder::class,
             BannerSeeder::class,
             AnnouncementSeeder::class,
+            BlogPostSeeder::class,
         ]);
 
         User::factory()->create([

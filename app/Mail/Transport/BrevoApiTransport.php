@@ -10,7 +10,11 @@ use Symfony\Component\Mime\MessageConverter;
 
 class BrevoApiTransport extends AbstractTransport
 {
-    public function __construct(private BrevoEmailService $brevo) {}
+    public function __construct(private BrevoEmailService $brevo)
+    {
+        // Required: initializes Symfony's $dispatcher (avoids typed property error).
+        parent::__construct();
+    }
 
     protected function doSend(SentMessage $message): void
     {

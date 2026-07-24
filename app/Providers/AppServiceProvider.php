@@ -21,6 +21,7 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -44,6 +45,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
+
         Mail::extend('brevo-api', fn () => new BrevoApiTransport(app(BrevoEmailService::class)));
 
         Blade::directive('money', fn ($expression) => "<?php echo \\App\\Support\\Money::format($expression); ?>");

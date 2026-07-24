@@ -127,9 +127,7 @@ class OrderService
         $order->update(['status' => $status]);
         $this->logStatus($order, $status, $title, $remarks, $actor);
 
-        if ($actor === 'admin') {
-            $this->notifications->notifyAdminStatusChange($order->fresh(), $status, $title, $remarks);
-        }
+        $this->notifications->notifyAdminStatusChange($order->fresh(), $status, $title, $remarks);
 
         return $order->fresh();
     }

@@ -196,9 +196,9 @@ Route::middleware('admin.auth')->group(function () {
         Route::get('/options', [ProductController::class, 'options'])->name('options');
         Route::get('/create', [ProductController::class, 'create'])->name('create');
         Route::post('/', [ProductController::class, 'store'])->name('store');
-        Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
-        Route::put('/{product}', [ProductController::class, 'update'])->name('update');
-        Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
+        Route::get('/{product:id}/edit', [ProductController::class, 'edit'])->name('edit');
+        Route::put('/{product:id}', [ProductController::class, 'update'])->name('update');
+        Route::delete('/{product:id}', [ProductController::class, 'destroy'])->name('destroy');
     });
 
     // Master Data CRUD routes

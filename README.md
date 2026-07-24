@@ -52,11 +52,20 @@ After login you are redirected to `/admin/dashboard`.
 
 - Laravel 12
 - Laravel Breeze (Blade + Tailwind CSS)
-- SQLite (default) — configure MySQL in `.env` for production
+- MySQL (XAMPP / Hostinger) — configure in `.env`
 
 ## Database
 
-Default uses SQLite (`database/database.sqlite`). To switch to MySQL, update `.env`:
+Uses MySQL (`bikeworld`). Create the DB, then migrate + seed:
+
+```bash
+# XAMPP example
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS bikeworld CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+php artisan migrate --seed
+```
+
+`.env` defaults:
 
 ```
 DB_CONNECTION=mysql
@@ -67,4 +76,4 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-Then run `php artisan migrate --seed`.
+For Hostinger production, see `.env.hostinger.example` and [DEPLOYMENT.md](DEPLOYMENT.md).
