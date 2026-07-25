@@ -24,11 +24,14 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->ensureStorageDirectoriesExist();
+
         $this->app->singleton(Brevo::class, function () {
             return new Brevo(
                 (string) config('brevo.api_key', ''),
@@ -43,11 +46,38 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(BrevoEmailService::class);
     }
 
+    /**
+     * Hostinger / FTP uploads often omit empty storage folders.
+     * Create them early so Artisan (storage:link, etc.) does not crash.
+     */
+    private function ensureStorageDirectoriesExist(): void
+    {
+        foreach ([
+            storage_path('app/public'),
+            storage_path('framework/cache/data'),
+            storage_path('framework/sessions'),
+            storage_path('framework/views'),
+            storage_path('logs'),
+            base_path('bootstrap/cache'),
+        ] as $path) {
+            if (! is_dir($path)) {
+                @mkdir($path, 0775, true);
+            }
+        }
+    }
+
     public function boot(): void
     {
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
+
+        Password::defaults(function () {
+            return Password::min(8)
+                ->letters()
+                ->mixedCase()
+                ->numbers();
+        });
 
         Mail::extend('brevo-api', fn () => new BrevoApiTransport(app(BrevoEmailService::class)));
 

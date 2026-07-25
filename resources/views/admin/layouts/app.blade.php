@@ -14,7 +14,7 @@
     <div class="flex min-h-screen">
         {{-- Sidebar --}}
         <aside class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-950 transform transition-transform duration-300 lg:translate-x-0 lg:static lg:inset-auto"
-            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
             <div class="flex flex-col h-full">
                 {{-- Logo --}}
                 <div class="flex items-center gap-3 px-6 py-6 border-b border-slate-800">
@@ -157,6 +157,13 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
                         Tax / GST Settings
                     </a>
+
+                    @if(Route::has('admin.settings.maintenance'))
+                    <a href="{{ route('admin.settings.maintenance') }}" class="admin-sidebar-link {{ request()->routeIs('admin.settings.maintenance') ? 'active' : '' }}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v8"/></svg>
+                        Maintenance Mode
+                    </a>
+                    @endif
                     @endif
 
                     <a href="{{ route('home') }}" target="_blank" class="admin-sidebar-link">

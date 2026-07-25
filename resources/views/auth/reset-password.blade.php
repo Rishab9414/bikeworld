@@ -1,39 +1,61 @@
-<x-guest-layout>
-    <form method="POST" action="{{ route('password.store') }}">
+@extends('layouts.shop')
+
+@section('title', 'Set New Password — ' . config('app.name'))
+
+@section('content')
+<x-auth-shell active="forgot" title="Set a new password" subtitle="Choose a strong password for your BikeWorld account.">
+    <x-auth-session-status class="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 text-sm font-medium" :status="session('status')" />
+
+    <form method="POST" action="{{ route('password.store') }}" class="space-y-5 max-w-md">
         @csrf
 
-        <!-- Password Reset Token -->
-        <input type="hidden" name="token" value="{{ $request->route('token') }}">
+        <input type="hidden" name="token" value="{{ $token }}">
 
-        <!-- Email Address -->
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
-        </div>
+        <x-auth-field
+            label="Email address"
+            name="email"
+            type="email"
+            placeholder="you@example.com"
+            autocomplete="username"
+            :value="$email"
+            :autofocus="true"
+            required
+        >
+            <x-slot:icon>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </x-slot:icon>
+        </x-auth-field>
 
-        <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
-            <x-text-input id="password" class="block mt-1 w-full" type="password" name="password" required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
+        <x-auth-password
+            name="password"
+            label="New password"
+            placeholder="Minimum 8 characters"
+            autocomplete="new-password"
+            required
+        />
 
-        <!-- Confirm Password -->
-        <div class="mt-4">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+        <x-auth-password
+            name="password_confirmation"
+            label="Confirm new password"
+            placeholder="Re-enter your password"
+            autocomplete="new-password"
+            required
+        />
 
-            <x-text-input id="password_confirmation" class="block mt-1 w-full"
-                                type="password"
-                                name="password_confirmation" required autocomplete="new-password" />
+        <p class="text-xs text-zinc-500 leading-relaxed">
+            Use at least 8 characters. Avoid passwords you’ve used on other sites.
+        </p>
 
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
-        </div>
-
-        <div class="flex items-center justify-end mt-4">
-            <x-primary-button>
-                {{ __('Reset Password') }}
-            </x-primary-button>
-        </div>
+        <button type="submit" class="w-full bg-brand-red hover:bg-red-700 text-white font-bold text-sm py-3.5 rounded-xl transition-colors shadow-md shadow-brand-red/20">
+            Reset password
+        </button>
     </form>
-</x-guest-layout>
+
+    <p class="mt-6">
+        <a href="{{ route('login') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 hover:text-brand-red transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Back to sign in
+        </a>
+    </p>
+</x-auth-shell>
+@endsection

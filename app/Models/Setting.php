@@ -78,4 +78,19 @@ class Setting extends Model
         return static::freeShippingEnabled()
             && $orderAmount >= static::freeShippingMinAmount();
     }
+
+    public static function maintenanceMessage(): string
+    {
+        return (string) static::get(
+            'maintenance_message',
+            'We are upgrading BikeWorld for a smoother ride. Please check back shortly.'
+        );
+    }
+
+    public static function maintenanceEta(): ?string
+    {
+        $eta = static::get('maintenance_eta');
+
+        return $eta ? (string) $eta : null;
+    }
 }

@@ -117,4 +117,49 @@ class StoreSettingsController extends Controller
 
         return back()->with('success', 'Homepage settings saved successfully.');
     }
+
+    public function maintenance(): View
+    {
+        return view('admin.settings.maintenance', [
+            'isDown' => app()->isDownForMaintenance(),
+            'message' => Setting::maintenanceMessage(),
+            'eta' => Setting::maintenanceEta(),
+        ]);
+    }
+
+    public function updateMaintenance(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'enabled' => ['nullable', 'boolean'],
+            'message' => ['nullable', 'string', 'max:500'],
+            'eta' => ['nullable', 'date'],
+        ]);
+
+        $enabled = $request->boolean('enabled');
+        $message = trim((string) ($validated['message'] ?? ''))
+            ?: 'We are upgrading BikeWorld for a smoother ride. Please check back shortly.';
+        $eta = $validated['eta'] ?? null;
+
+        Setting::set('maintenance_message', $message);
+        Setting::set('maintenance_eta', $eta ? (string) $eta : '');
+
+        if ($enabled) {
+            \Illuminate\Support\Facades\Artisan::call('down', [
+                '--render' => 'errors.maintenance',
+                '--retry' => 60,
+                '--refresh' => 30,
+                '--secret' => 'bikeworld-admin-bypass',
+            ]);
+
+            ActivityLogger::log('updated', 'settings', null, 'Website maintenance mode ENABLED');
+
+            return back()->with('success', 'Maintenance mode is ON. Customers see the maintenance page. Admin panel still works.');
+        }
+
+        \Illuminate\Support\Facades\Artisan::call('up');
+
+        ActivityLogger::log('updated', 'settings', null, 'Website maintenance mode DISABLED');
+
+        return back()->with('success', 'Maintenance mode is OFF. The storefront is live again.');
+    }
 }

@@ -187,6 +187,8 @@ Route::middleware('admin.auth')->group(function () {
         Route::put('/tax', [StoreSettingsController::class, 'updateTax'])->name('tax.update');
         Route::get('/homepage', [StoreSettingsController::class, 'homepage'])->name('homepage');
         Route::put('/homepage', [StoreSettingsController::class, 'updateHomepage'])->name('homepage.update');
+        Route::get('/maintenance', [StoreSettingsController::class, 'maintenance'])->name('maintenance');
+        Route::put('/maintenance', [StoreSettingsController::class, 'updateMaintenance'])->name('maintenance.update');
     });
 
     // Products

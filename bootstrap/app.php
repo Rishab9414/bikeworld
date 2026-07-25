@@ -26,6 +26,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhooks/*',
         ]);
+
+        // Keep admin + webhooks reachable while the storefront is in maintenance.
+        $middleware->preventRequestsDuringMaintenance([
+            'admin',
+            'admin/*',
+            'webhooks/*',
+            'up',
+            'bikeworld-admin-bypass',
+        ]);
+
         $middleware->alias([
             'admin.auth' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'admin.guest' => \App\Http\Middleware\RedirectIfAdminAuthenticated::class,

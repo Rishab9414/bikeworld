@@ -1,9 +1,9 @@
 @extends('layouts.shop')
 
-@section('title', 'Reset Password — ' . config('app.name'))
+@section('title', 'Forgot Password — ' . config('app.name'))
 
 @section('content')
-<x-auth-shell active="forgot" title="Forgot your password?" subtitle="No worries — enter your email and we'll send you a reset link.">
+<x-auth-shell active="forgot" title="Forgot your password?" subtitle="Enter your account email and we’ll send a secure reset link.">
     <x-auth-session-status class="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 text-sm font-medium" :status="session('status')" />
 
     <form method="POST" action="{{ route('password.email') }}" class="space-y-5 max-w-md">
@@ -22,6 +22,10 @@
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
             </x-slot:icon>
         </x-auth-field>
+
+        <p class="text-xs text-zinc-500 leading-relaxed">
+            The reset link is encrypted, expires in 60 minutes, and works only once.
+        </p>
 
         <button type="submit" class="w-full bg-brand-red hover:bg-red-700 text-white font-bold text-sm py-3.5 rounded-xl transition-colors shadow-md shadow-brand-red/20">
             Send reset link
