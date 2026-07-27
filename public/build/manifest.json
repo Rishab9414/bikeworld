@@ -1,0 +1,38 @@
+{
+  "resources/css/admin.css": {
+    "file": "assets/admin-CKfaQJbi.css",
+    "src": "resources/css/admin.css",
+    "isEntry": true,
+    "name": "admin",
+    "names": [
+      "admin.css"
+    ]
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-Ctynqu05.css",
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "name": "app",
+    "names": [
+      "app.css"
+    ]
+  },
+  "resources/js/admin-master.js": {
+    "file": "assets/admin-master-CmQIVeqD.js",
+    "name": "admin-master",
+    "src": "resources/js/admin-master.js",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-BfpX1doZ.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/js/product-form.js": {
+    "file": "assets/product-form-DxvV-KKG.js",
+    "name": "product-form",
+    "src": "resources/js/product-form.js",
+    "isEntry": true
+  }
+}
