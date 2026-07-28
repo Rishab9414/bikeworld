@@ -55,6 +55,7 @@ class DelhiveryService
     public function generateLabel(Shipment $shipment): string
     {
         $shipment->refresh();
+        $shipment->loadMissing('order.items', 'order.customer');
 
         if ($shipment->shipping_label && Storage::disk('public')->exists($shipment->shipping_label)) {
             return $shipment->shipping_label;
@@ -68,7 +69,6 @@ class DelhiveryService
             );
         }
 
-        // Keep both fields in sync for older rows.
         if (! $shipment->waybill) {
             $shipment->update([
                 'waybill' => $waybill,
@@ -78,44 +78,127 @@ class DelhiveryService
         }
 
         if ($this->isMock()) {
-            $path = $this->storeMockLabel($shipment);
-            $shipment->update(['shipping_label' => $path]);
+            $path = $this->storeHtmlLabel($shipment);
 
             return $path;
         }
 
+        // Official API returns JSON (optionally with a PDF link). FAQ: not a raw PDF body.
         $response = $this->request('GET', '/api/p/packing_slip', [
             'wbns' => $waybill,
             'pdf' => 'true',
         ]);
 
-        $body = $response->body();
-        $contentType = strtolower((string) $response->header('Content-Type'));
-
-        // Delhivery returns JSON errors when wbns is invalid/missing.
-        if (str_contains($contentType, 'json') || str_starts_with(ltrim($body), '{')) {
-            $json = json_decode($body, true);
-            $error = $json['error'] ?? $json['message'] ?? $json['remark'] ?? null;
-
-            Log::error('Delhivery packing slip failed', [
+        if (! $response->successful()) {
+            Log::error('Delhivery packing slip HTTP error', [
                 'waybill' => $waybill,
                 'status' => $response->status(),
-                'body' => $body,
+                'body' => $response->body(),
             ]);
 
-            throw new \RuntimeException(
-                $error
-                    ? "Delhivery label error: {$error}"
-                    : 'Delhivery did not return a PDF label. Check AWB and API token.'
-            );
-        }
-
-        if (! $response->successful()) {
             throw new \RuntimeException('Delhivery label request failed (HTTP '.$response->status().').');
         }
 
-        $path = 'labels/'.$waybill.'.pdf';
-        Storage::disk('public')->put($path, $body);
+        $body = $response->body();
+        $contentType = strtolower((string) $response->header('Content-Type'));
+
+        // Rare: binary PDF returned directly
+        if (str_contains($contentType, 'pdf') || str_starts_with($body, '%PDF')) {
+            $path = 'labels/'.$waybill.'.pdf';
+            Storage::disk('public')->put($path, $body);
+            $shipment->update(['shipping_label' => $path]);
+
+            return $path;
+        }
+
+        $json = json_decode($body, true);
+
+        if (! is_array($json)) {
+            Log::error('Delhivery packing slip unexpected body', [
+                'waybill' => $waybill,
+                'body' => substr($body, 0, 500),
+            ]);
+
+            throw new \RuntimeException('Delhivery returned an unexpected label response.');
+        }
+
+        if ($error = ($json['error'] ?? $json['message'] ?? null)) {
+            // Some success payloads still include message — only fail on clear errors.
+            if (! isset($json['packages']) && ! isset($json['packages_info']) && ! $this->extractPackingSlipPdfUrl($json)) {
+                throw new \RuntimeException("Delhivery label error: {$error}");
+            }
+        }
+
+        if ($pdfUrl = $this->extractPackingSlipPdfUrl($json)) {
+            $pdf = Http::withHeaders([
+                'Authorization' => 'Token '.config('delhivery.api_token'),
+            ])->timeout(60)->get($pdfUrl);
+
+            if ($pdf->successful() && (str_starts_with($pdf->body(), '%PDF') || str_contains(strtolower((string) $pdf->header('Content-Type')), 'pdf'))) {
+                $path = 'labels/'.$waybill.'.pdf';
+                Storage::disk('public')->put($path, $pdf->body());
+                $shipment->update(['shipping_label' => $path]);
+
+                return $path;
+            }
+        }
+
+        $slip = $this->extractPackingSlipPackage($json, $waybill);
+        $path = $this->storeHtmlLabel($shipment, $slip);
+
+        return $path;
+    }
+
+    private function extractPackingSlipPdfUrl(array $json): ?string
+    {
+        $candidates = [
+            $json['pdf_download'] ?? null,
+            $json['pdf_download_link'] ?? null,
+            $json['pdf_url'] ?? null,
+            $json['packages_info'][0]['pdf_download'] ?? null,
+            $json['packages'][0]['pdf_download'] ?? null,
+            $json['packages'][0]['pdf_url'] ?? null,
+        ];
+
+        foreach ($candidates as $url) {
+            if (is_string($url) && filter_var($url, FILTER_VALIDATE_URL)) {
+                return $url;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractPackingSlipPackage(array $json, string $waybill): array
+    {
+        $packages = $json['packages_info']
+            ?? $json['packages']
+            ?? $json['package']
+            ?? [];
+
+        if (isset($packages[0]) && is_array($packages[0])) {
+            $pkg = $packages[0];
+            $pkg['wbn'] = $pkg['wbn'] ?? $pkg['waybill'] ?? $waybill;
+
+            return $pkg;
+        }
+
+        return ['wbn' => $waybill];
+    }
+
+    private function storeHtmlLabel(Shipment $shipment, array $slip = []): string
+    {
+        $shipment->loadMissing('order.items', 'order.customer');
+        $waybill = $shipment->waybill ?: ($slip['wbn'] ?? 'label');
+
+        $html = view('admin.orders.shipping-label', [
+            'shipment' => $shipment,
+            'order' => $shipment->order,
+            'slip' => $slip,
+        ])->render();
+
+        $path = 'labels/'.$waybill.'.html';
+        Storage::disk('public')->put($path, $html);
         $shipment->update(['shipping_label' => $path]);
 
         return $path;
@@ -429,15 +512,6 @@ class DelhiveryService
             'waybill' => (string) $waybill,
             'tracking_url' => "https://www.delhivery.com/track/package/{$waybill}",
         ];
-    }
-
-    private function storeMockLabel(Shipment $shipment): string
-    {
-        $html = view('admin.orders.shipping-label', ['shipment' => $shipment, 'order' => $shipment->order])->render();
-        $path = 'labels/'.$shipment->waybill.'.html';
-        Storage::disk('public')->put($path, $html);
-
-        return $path;
     }
 
     private function request(string $method, string $path, array $data = [], bool $asForm = false)

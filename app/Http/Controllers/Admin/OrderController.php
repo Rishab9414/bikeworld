@@ -226,10 +226,23 @@ class OrderController extends Controller
 
         // Old failed runs may have saved Delhivery JSON error as a "pdf"
         $contents = Storage::disk('public')->get($path);
-        if (str_starts_with(ltrim($contents), '{')) {
+        if (str_starts_with(ltrim($contents), '{') || str_contains($contents, 'wbns key missing')) {
             Storage::disk('public')->delete($path);
             $shipment->update(['shipping_label' => null]);
-            abort(422, 'Saved label is invalid (API error). Generate the label again after confirming AWB exists.');
+
+            try {
+                GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
+                $shipment->refresh();
+                $path = $shipment->shipping_label;
+            } catch (\Throwable $e) {
+                abort(422, $e->getMessage());
+            }
+
+            if (! $path || ! Storage::disk('public')->exists($path)) {
+                abort(422, 'Could not regenerate shipping label.');
+            }
+
+            $contents = Storage::disk('public')->get($path);
         }
 
         if (str_ends_with($path, '.html')) {
