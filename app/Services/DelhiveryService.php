@@ -54,8 +54,27 @@ class DelhiveryService
 
     public function generateLabel(Shipment $shipment): string
     {
+        $shipment->refresh();
+
         if ($shipment->shipping_label && Storage::disk('public')->exists($shipment->shipping_label)) {
             return $shipment->shipping_label;
+        }
+
+        $waybill = trim((string) ($shipment->waybill ?: $shipment->tracking_number));
+
+        if ($waybill === '') {
+            throw new \RuntimeException(
+                'Cannot print label: AWB / waybill is missing on this shipment. Create the Delhivery shipment again so an AWB is assigned.'
+            );
+        }
+
+        // Keep both fields in sync for older rows.
+        if (! $shipment->waybill) {
+            $shipment->update([
+                'waybill' => $waybill,
+                'tracking_number' => $shipment->tracking_number ?: $waybill,
+                'tracking_url' => $shipment->tracking_url ?: "https://www.delhivery.com/track/package/{$waybill}",
+            ]);
         }
 
         if ($this->isMock()) {
@@ -66,12 +85,37 @@ class DelhiveryService
         }
 
         $response = $this->request('GET', '/api/p/packing_slip', [
-            'wbns' => $shipment->waybill,
-            'pdf' => true,
+            'wbns' => $waybill,
+            'pdf' => 'true',
         ]);
 
-        $path = 'labels/'.$shipment->waybill.'.pdf';
-        Storage::disk('public')->put($path, $response->body());
+        $body = $response->body();
+        $contentType = strtolower((string) $response->header('Content-Type'));
+
+        // Delhivery returns JSON errors when wbns is invalid/missing.
+        if (str_contains($contentType, 'json') || str_starts_with(ltrim($body), '{')) {
+            $json = json_decode($body, true);
+            $error = $json['error'] ?? $json['message'] ?? $json['remark'] ?? null;
+
+            Log::error('Delhivery packing slip failed', [
+                'waybill' => $waybill,
+                'status' => $response->status(),
+                'body' => $body,
+            ]);
+
+            throw new \RuntimeException(
+                $error
+                    ? "Delhivery label error: {$error}"
+                    : 'Delhivery did not return a PDF label. Check AWB and API token.'
+            );
+        }
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('Delhivery label request failed (HTTP '.$response->status().').');
+        }
+
+        $path = 'labels/'.$waybill.'.pdf';
+        Storage::disk('public')->put($path, $body);
         $shipment->update(['shipping_label' => $path]);
 
         return $path;
@@ -345,13 +389,45 @@ class DelhiveryService
             ];
         }
 
-        $json = $response->json();
-        $pkg = $json['packages'][0] ?? $json['package'][0] ?? [];
+        $json = $response->json() ?? [];
+
+        // Common Delhivery CMU shapes
+        $pkg = $json['packages'][0]
+            ?? $json['package'][0]
+            ?? $json['shipment_data']['packages'][0]
+            ?? $json['data']['packages'][0]
+            ?? [];
+
+        $waybill = $pkg['waybill']
+            ?? $pkg['wbn']
+            ?? $json['waybill']
+            ?? $json['wbn']
+            ?? null;
+
+        $status = strtolower((string) ($pkg['status'] ?? $json['status'] ?? ''));
+        $remark = $pkg['remarks'] ?? $pkg['remark'] ?? $json['rmk'] ?? $json['message'] ?? null;
+
+        if (! $waybill) {
+            Log::error('Delhivery create shipment: waybill missing', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            throw new \RuntimeException(
+                $remark
+                    ? "Delhivery did not assign an AWB: {$remark}"
+                    : 'Delhivery did not return a waybill/AWB. Check pickup warehouse name, token, and API response.'
+            );
+        }
+
+        if (in_array($status, ['fail', 'failed', 'error'], true)) {
+            throw new \RuntimeException($remark ?: 'Delhivery shipment creation failed.');
+        }
 
         return [
-            'shipment_id' => $pkg['refnum'] ?? $json['shipment_id'] ?? null,
-            'waybill' => $pkg['waybill'] ?? $json['waybill'] ?? null,
-            'tracking_url' => isset($pkg['waybill']) ? "https://www.delhivery.com/track/package/{$pkg['waybill']}" : null,
+            'shipment_id' => $pkg['refnum'] ?? $pkg['ref_num'] ?? $json['shipment_id'] ?? (string) $waybill,
+            'waybill' => (string) $waybill,
+            'tracking_url' => "https://www.delhivery.com/track/package/{$waybill}",
         ];
     }
 
@@ -378,9 +454,14 @@ class DelhiveryService
             'Accept' => 'application/json',
         ])->timeout(30);
 
+        // GET must send params as query string (Delhivery packing_slip needs ?wbns=...)
+        if (strtoupper($method) === 'GET') {
+            return $http->get($url, $data);
+        }
+
         return $asForm
-            ? $http->asForm()->$method($url, $data)
-            : $http->$method($url, $data);
+            ? $http->asForm()->{$method}($url, $data)
+            : $http->{$method}($url, $data);
     }
 
     private function isMock(): bool

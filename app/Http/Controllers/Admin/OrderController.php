@@ -179,7 +179,19 @@ class OrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Create shipment first.'], 422);
         }
 
-        GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
+        $waybill = trim((string) ($shipment->waybill ?: $shipment->tracking_number));
+        if ($waybill === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'AWB / waybill is missing. Create the Delhivery shipment again, then print the label.',
+            ], 422);
+        }
+
+        try {
+            GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json(['success' => true, 'message' => 'Label generated.', 'reload' => true]);
     }
@@ -192,9 +204,18 @@ class OrderController extends Controller
             abort(404, 'No shipment found. Create shipment first.');
         }
 
-        if (! $shipment->shipping_label || ! Storage::disk('public')->exists($shipment->shipping_label)) {
-            GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
-            $shipment->refresh();
+        $waybill = trim((string) ($shipment->waybill ?: $shipment->tracking_number));
+        if ($waybill === '') {
+            abort(422, 'AWB / waybill is missing. Create the Delhivery shipment again, then print the label.');
+        }
+
+        try {
+            if (! $shipment->shipping_label || ! Storage::disk('public')->exists($shipment->shipping_label)) {
+                GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
+                $shipment->refresh();
+            }
+        } catch (\Throwable $e) {
+            abort(422, $e->getMessage());
         }
 
         $path = $shipment->shipping_label;
@@ -203,8 +224,16 @@ class OrderController extends Controller
             abort(404, 'Label not ready yet. Try again in a moment.');
         }
 
+        // Old failed runs may have saved Delhivery JSON error as a "pdf"
+        $contents = Storage::disk('public')->get($path);
+        if (str_starts_with(ltrim($contents), '{')) {
+            Storage::disk('public')->delete($path);
+            $shipment->update(['shipping_label' => null]);
+            abort(422, 'Saved label is invalid (API error). Generate the label again after confirming AWB exists.');
+        }
+
         if (str_ends_with($path, '.html')) {
-            return response(Storage::disk('public')->get($path))->header('Content-Type', 'text/html');
+            return response($contents)->header('Content-Type', 'text/html');
         }
 
         return response()->file(Storage::disk('public')->path($path));
