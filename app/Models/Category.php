@@ -52,4 +52,13 @@ class Category extends Model
     {
         return $this->products()->where('is_active', true);
     }
+
+    public function imageUrl(): ?string
+    {
+        if (empty($this->image)) {
+            return null;
+        }
+
+        return str_starts_with($this->image, 'http') ? $this->image : asset('storage/'.$this->image);
+    }
 }

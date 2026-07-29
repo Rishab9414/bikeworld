@@ -1,11 +1,16 @@
 @extends('admin.layouts.app')
 @section('title', 'Categories')
 @section('page-title', 'Category Master')
-@section('page-subtitle', 'Manage product categories and sub-categories')
+@section('page-subtitle', 'Manage product categories and homepage category photos')
 
 @push('scripts')
 <script type="module">
 window.renderMasterRow = (row) => `<tr class="hover:bg-slate-50">
+    <td class="px-5 py-3.5">
+        ${row.image_url
+            ? `<img src="${row.image_url}" alt="" class="w-14 h-14 rounded-lg object-cover border border-slate-200">`
+            : `<div class="w-14 h-14 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-[10px]">No img</div>`}
+    </td>
     <td class="px-5 py-3.5"><div class="font-medium text-slate-900">${row.name}</div><div class="text-xs text-slate-400">${row.slug || ''}</div></td>
     <td class="px-5 py-3.5 text-sm text-slate-600">${row.parent_name || '—'}</td>
     <td class="px-5 py-3.5 text-sm">${row.display_order || 0}</td>
@@ -33,11 +38,17 @@ window.onMasterModalOpen = async () => {
 <x-master-crud
     :base-url="route('admin.masters.categories.index')"
     module="categories"
-    :columns="[['label'=>'Name'],['label'=>'Parent'],['label'=>'Order'],['label'=>'Featured'],['label'=>'Status']]"
+    :columns="[['label'=>'Photo'],['label'=>'Name'],['label'=>'Parent'],['label'=>'Order'],['label'=>'Featured'],['label'=>'Status']]"
 >
     <x-slot:form>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="sm:col-span-2"><label class="block text-sm font-medium text-slate-700 mb-1">Category Name *</label><input name="name" required class="admin-input text-sm"></div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Category Photo (Shop by Category)</label>
+                <img data-image-preview="image_url" class="hidden w-full max-w-xs h-40 object-cover rounded-xl border border-slate-200 mb-2" alt="Preview">
+                <input type="file" name="image_file" accept="image/jpeg,image/jpg,image/png,image/webp" data-preview-target="image_url" class="admin-input text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-medium">
+                <p class="text-xs text-slate-400 mt-1">Shown on homepage Shop by Category cards (JPEG, PNG, WebP — max 4MB). Recommended portrait ~800×1000.</p>
+            </div>
             <div><label class="block text-sm font-medium text-slate-700 mb-1">Parent Category</label><select name="parent_id" id="parent_id" class="admin-input text-sm"><option value="">None (Root)</option></select></div>
             <div><label class="block text-sm font-medium text-slate-700 mb-1">Display Order</label><input name="display_order" type="number" min="0" value="0" class="admin-input text-sm"></div>
             <div class="sm:col-span-2"><label class="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea name="description" rows="2" class="admin-input text-sm"></textarea></div>

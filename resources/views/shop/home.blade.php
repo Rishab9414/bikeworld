@@ -110,24 +110,16 @@
             <h2 class="text-3xl lg:text-4xl font-black text-brand-black">SHOP BY <span class="text-brand-red">CATEGORY</span></h2>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
-            @php
-                $catImages = [
-                    'helmet' => 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=400&q=80',
-                    'riding-jacket' => 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80',
-                    'gloves' => 'https://images.unsplash.com/photo-1598550487031-3a165eb9163b?w=400&q=80',
-                    'tank-bag' => 'https://images.unsplash.com/photo-1609630875171-bb316c52aa51?w=400&q=80',
-                    'saddle-bag' => 'https://images.unsplash.com/photo-1558980664-769d9df2c0f2?w=400&q=80',
-                    'phone-holder' => 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&q=80',
-                    'lights' => 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=400&q=80',
-                    'lubricants' => 'https://images.unsplash.com/photo-1625047509168-a7026f36de0c?w=400&q=80',
-                ];
-            @endphp
             @foreach($categories as $category)
+            @php
+                $catImage = $category->imageUrl()
+                    ?? 'https://images.unsplash.com/photo-1558981403-c5f9899a28f0?w=800&q=80';
+            @endphp
             <a href="{{ route('products.index', ['category' => $category->slug]) }}"
                class="group relative rounded-2xl overflow-hidden aspect-[4/5] bg-brand-black shadow-lg hover:shadow-xl hover:shadow-brand-red/10 transition-all duration-500 hover:-translate-y-2"
                style="transition-delay: {{ $loop->index * 50 }}ms">
-                <img src="{{ $catImages[$category->slug] ?? 'https://images.unsplash.com/photo-1558981403-c5f9899a28f0?w=400&q=80' }}" alt="{{ $category->name }}" class="w-full h-full object-cover opacity-70 group-hover:opacity-50 group-hover:scale-110 transition-all duration-500">
-                <div class="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-black/30 to-transparent"></div>
+                <img src="{{ $catImage }}" alt="{{ $category->name }}" class="w-full h-full object-cover opacity-85 group-hover:opacity-70 group-hover:scale-110 transition-all duration-500">
+                <div class="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-black/25 to-transparent"></div>
                 <div class="absolute bottom-0 left-0 right-0 p-4 lg:p-5">
                     <h3 class="text-white font-bold text-sm lg:text-base">{{ $category->name }}</h3>
                     <p class="text-zinc-400 text-xs mt-0.5">{{ $category->products_count }} products</p>

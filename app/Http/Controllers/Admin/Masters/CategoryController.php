@@ -16,6 +16,16 @@ class CategoryController extends AjaxMasterController
     protected function orderDirection(): string { return 'asc'; }
     protected function withRelations(): array { return ['parent']; }
 
+    protected function fileFields(): array
+    {
+        return ['image_file' => 'image'];
+    }
+
+    protected function uploadDirectory(): string
+    {
+        return 'categories';
+    }
+
     protected function validationRules(?int $id = null): array
     {
         return [
@@ -23,7 +33,8 @@ class CategoryController extends AjaxMasterController
             'parent_id' => ['nullable', 'exists:categories,id'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:categories,slug,'.$id],
             'description' => ['nullable', 'string'],
-            'image' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'string', 'max:500'],
+            'image_file' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
             'banner_image' => ['nullable', 'string', 'max:255'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_keywords' => ['nullable', 'string'],
@@ -53,6 +64,7 @@ class CategoryController extends AjaxMasterController
     {
         $data = $record->toArray();
         $data['parent_name'] = $record->parent?->name;
+        $data['image_url'] = $record->imageUrl();
 
         return $data;
     }
