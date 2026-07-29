@@ -36,8 +36,9 @@
        @if($index !== 0) style="display:none" @endif
     >
         <img src="{{ $banner->imageUrl() }}" alt="{{ $banner->title }}" class="absolute inset-0 w-full h-full object-cover">
-        <div class="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/75 to-brand-black/20"></div>
-        <div class="absolute inset-0 bg-gradient-to-t from-brand-black/80 via-transparent to-brand-black/30"></div>
+        {{-- Light scrim only behind text so the banner image stays bright --}}
+        <div class="absolute inset-0 bg-gradient-to-r from-brand-black/45 via-brand-black/15 to-transparent"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-brand-black/35 via-transparent to-transparent"></div>
 
         <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
             <div class="max-w-2xl animate-fade-in-up" :key="current">
@@ -47,11 +48,11 @@
                     {{ $banner->category->name }}
                 </span>
                 @endif
-                <h1 class="text-4xl sm:text-5xl lg:text-7xl font-black text-white leading-[1.05] tracking-tight">
+                <h1 class="text-4xl sm:text-5xl lg:text-7xl font-black text-white leading-[1.05] tracking-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)]">
                     {{ $banner->title }}
                 </h1>
                 @if($banner->subtitle)
-                <p class="mt-5 text-lg sm:text-xl text-zinc-300 max-w-xl leading-relaxed">{{ $banner->subtitle }}</p>
+                <p class="mt-5 text-lg sm:text-xl text-white/90 max-w-xl leading-relaxed drop-shadow-[0_1px_8px_rgba(0,0,0,0.5)]">{{ $banner->subtitle }}</p>
                 @endif
                 <span class="mt-8 inline-flex items-center gap-3 bg-brand-red text-white font-bold px-8 py-4 rounded-xl shadow-lg shadow-brand-red/40 group-hover:gap-4 transition-all animate-pulse-glow">
                     {{ $banner->button_text }}
