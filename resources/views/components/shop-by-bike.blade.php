@@ -86,11 +86,11 @@
                 <a href="{{ route('shop-by-bike.brand', $brand) }}"
                    class="shrink-0 group block pr-4 sm:pr-5 box-border"
                    :style="`width: ${slideWidth()}px`">
-                    <div class="bg-zinc-100 rounded-2xl sm:rounded-3xl p-3 sm:p-4 aspect-[3/4] flex items-end justify-center overflow-hidden group-hover:shadow-md group-hover:bg-zinc-50 transition-all duration-300">
+                    <div class="bg-zinc-100 rounded-2xl sm:rounded-3xl aspect-[3/4] overflow-hidden group-hover:shadow-md transition-all duration-300">
                         @if($cardImage)
                         <img src="{{ $cardImage }}"
                              alt="{{ $brand->name }}"
-                             class="w-full max-h-[88%] object-contain object-bottom group-hover:scale-105 transition-transform duration-500 drop-shadow-sm">
+                             class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500">
                         @else
                         <div class="w-full h-full flex items-center justify-center">
                             <svg class="w-14 h-14 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
