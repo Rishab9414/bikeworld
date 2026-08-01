@@ -45,6 +45,7 @@ Confirm `public/build/manifest.json` exists.
 |------|-----|
 | `.env` | Create fresh on server from `.env.hostinger.example` |
 | `node_modules/` | Not needed on server |
+| `public/hot` | **Dev-only** — causes site to load CSS/JS from localhost and break production |
 | `.git/` | Optional; skip if uploading ZIP/FTP |
 | `tests/`, `.phpunit*` | Not needed in production |
 | `storage/logs/*` | Keep folders, clear log files |
@@ -273,7 +274,7 @@ If you deploy by FTP: upload changed PHP files + `public/build` after each front
 | Problem | Fix |
 |---------|-----|
 | 500 error | `storage/logs/laravel.log`; ensure `storage` & `bootstrap/cache` are 775 |
-| Blank page / no CSS | Upload `public/build` after `npm run build` locally |
+| Blank page / no CSS | Upload `public/build` after `npm run build` locally; **delete `public/hot` on server** if present |
 | Database error | Check hPanel MySQL name/user/password; `DB_HOST=localhost` |
 | Mixed content / login loops | `APP_URL=https://...`, SSL on, then `php artisan config:cache` |
 | Images 404 | `php artisan storage:link` or manual `public/storage` symlink |
