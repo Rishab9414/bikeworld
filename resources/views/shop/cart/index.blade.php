@@ -18,24 +18,35 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div class="lg:col-span-2 space-y-4">
                 @foreach($items as $item)
+                    @php
+                        $imageUrl = $item->displayImageUrl();
+                        $maxStock = $item->availableStock();
+                    @endphp
                     <div class="bg-white rounded-xl border border-gray-100 p-6 flex gap-4">
-                        <div class="w-24 h-24 bg-gray-100 rounded-lg shrink-0 flex items-center justify-center">
-                            <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                            </svg>
-                        </div>
+                        <a href="{{ route('products.show', $item->product) }}" class="w-24 h-24 bg-gray-100 rounded-lg shrink-0 overflow-hidden flex items-center justify-center">
+                            @if($imageUrl)
+                                <img src="{{ $imageUrl }}" alt="{{ $item->product->name }}" class="w-full h-full object-cover">
+                            @else
+                                <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            @endif
+                        </a>
                         <div class="flex-1">
                             <a href="{{ route('products.show', $item->product) }}" class="font-semibold text-gray-900 hover:text-orange-600">{{ $item->product->name }}</a>
+                            @if($item->variantLabel())
+                                <p class="text-sm text-gray-600 mt-0.5">{{ $item->variantLabel() }}</p>
+                            @endif
                             <p class="text-sm text-gray-500 mt-1">{{ $item->product->category->name }}</p>
-                            <p class="text-lg font-bold text-gray-900 mt-2">@money($item->product->price)</p>
+                            <p class="text-lg font-bold text-gray-900 mt-2">@money($item->displayPrice())</p>
                         </div>
                         <div class="flex flex-col items-end gap-2">
                             <form action="{{ route('cart.update', $item) }}" method="POST" class="flex items-center gap-2">
                                 @csrf
                                 @method('PATCH')
-                                <input type="number" name="quantity" value="{{ $item->quantity }}" min="0" max="{{ $item->product->stock }}" class="w-16 rounded border-gray-300 text-sm" onchange="this.form.submit()">
+                                <input type="number" name="quantity" value="{{ $item->quantity }}" min="0" max="{{ $maxStock }}" class="w-16 rounded border-gray-300 text-sm" onchange="this.form.submit()">
                             </form>
-                            <p class="font-semibold">@money($item->subtotal())</p>
+                            <p class="font-semibold">@money($item->displayPrice() * $item->quantity)</p>
                             <form action="{{ route('cart.destroy', $item) }}" method="POST">
                                 @csrf
                                 @method('DELETE')

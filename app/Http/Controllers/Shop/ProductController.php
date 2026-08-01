@@ -52,7 +52,7 @@ class ProductController extends Controller
     {
         abort_unless($product->is_active, 404);
 
-        $product->load(['category', 'brand', 'approvedReviews.customer']);
+        $product->load(['category', 'brand', 'approvedReviews.customer', 'variants.color', 'variants.size', 'variants.material']);
 
         $seo = app(SeoService::class)->forProduct($product);
         $reviewSummary = app(\App\Services\ProductReviewService::class)->summaryForProduct($product);

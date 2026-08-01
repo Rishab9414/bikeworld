@@ -77,9 +77,13 @@ window.productForm = {
 
     addVariantRow(container, masters, data = {}) {
         const idx = container.querySelectorAll('.variant-row').length;
+        const imagePreview = data.image_url
+            ? `<img src="${data.image_url}" alt="Variant" class="variant-image-preview mt-2 w-16 h-16 object-cover rounded-lg border border-slate-200">`
+            : '';
         const row = document.createElement('div');
-        row.className = 'variant-row grid grid-cols-2 md:grid-cols-6 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200';
+        row.className = 'variant-row space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200';
         row.innerHTML = `
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
             <div><label class="text-xs text-slate-500">SKU</label><input name="variants[${idx}][sku]" value="${data.sku || ''}" class="admin-input text-sm py-2"></div>
             <div data-master-wrap data-store-url="/admin/masters/colors" data-master-label="Add Color" data-fields='[{"name":"name","label":"Color Name","required":true}]'>
                 <label class="text-xs text-slate-500">Color</label>
@@ -94,6 +98,13 @@ window.productForm = {
             <div><label class="text-xs text-slate-500">Price</label><input name="variants[${idx}][price]" type="number" step="0.01" value="${data.price || ''}" class="admin-input text-sm py-2"></div>
             <div><label class="text-xs text-slate-500">Stock</label><input name="variants[${idx}][stock]" type="number" value="${data.stock || 0}" class="admin-input text-sm py-2"></div>
             <div class="flex items-end"><button type="button" class="remove-variant text-red-600 text-sm font-medium py-2">Remove</button></div>
+            </div>
+            <div>
+                <label class="text-xs text-slate-500">Variant Image</label>
+                <input type="hidden" name="variants[${idx}][existing_image]" value="${data.image || ''}">
+                <input type="file" name="variants[${idx}][image]" accept="image/jpeg,image/png,image/webp" class="admin-input text-sm py-2">
+                ${imagePreview}
+            </div>
         `;
         row.querySelector('.remove-variant').addEventListener('click', () => row.remove());
         container.appendChild(row);

@@ -254,6 +254,8 @@ class ProductController extends Controller
             'features.*' => ['nullable', 'string', 'max:255'],
             'tags' => ['nullable', 'string'],
             'variants' => ['nullable', 'array'],
+            'variants.*.image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'variants.*.existing_image' => ['nullable', 'string', 'max:500'],
         ]);
     }
 
@@ -325,11 +327,24 @@ class ProductController extends Controller
             ProductTag::create(['product_id' => $product->id, 'tag' => $tag]);
         }
 
+        $previousVariantImages = $product->variants()->pluck('image')->filter()->all();
+        $keptVariantImages = [];
+
         $product->variants()->delete();
-        foreach ($request->input('variants', []) as $variant) {
-            if (empty($variant['sku']) && empty($variant['price'])) {
+        foreach ($request->input('variants', []) as $index => $variant) {
+            if (empty($variant['sku']) && empty($variant['price']) && empty($variant['color_id']) && empty($variant['size_id'])) {
                 continue;
             }
+
+            $imagePath = $variant['existing_image'] ?? null;
+            if ($request->hasFile("variants.{$index}.image")) {
+                $imagePath = $request->file("variants.{$index}.image")->store('products/variants', 'public');
+            }
+
+            if ($imagePath) {
+                $keptVariantImages[] = $imagePath;
+            }
+
             ProductVariant::create([
                 'product_id' => $product->id,
                 'sku' => $variant['sku'] ?? null,
@@ -340,8 +355,15 @@ class ProductController extends Controller
                 'price' => $variant['price'] ?? null,
                 'stock' => $variant['stock'] ?? 0,
                 'weight' => $variant['weight'] ?? null,
+                'image' => $imagePath,
                 'is_active' => true,
             ]);
+        }
+
+        foreach ($previousVariantImages as $imagePath) {
+            if (! in_array($imagePath, $keptVariantImages, true)) {
+                Storage::disk('public')->delete($imagePath);
+            }
         }
 
         foreach (['manual', 'installation', 'warranty', 'safety'] as $docType) {

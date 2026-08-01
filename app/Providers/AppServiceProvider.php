@@ -92,12 +92,8 @@ class AppServiceProvider extends ServiceProvider
             $view->with('wishlistProductIds', $wishlist->productIdsForUser($user));
             $view->with('topBarAnnouncements', Announcement::forPosition(Announcement::POSITION_TOP_BAR));
 
-            $rootCategory = Category::where('slug', 'bike-accessories')->first();
             $menuCategories = Category::query()
-                ->when($rootCategory, fn ($q) => $q->where('parent_id', $rootCategory->id))
-                ->when(! $rootCategory, fn ($q) => $q->whereNotNull('parent_id'))
                 ->where('is_active', true)
-                ->where('show_in_menu', true)
                 ->orderBy('display_order')
                 ->orderBy('name')
                 ->get();

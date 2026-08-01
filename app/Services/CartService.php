@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
@@ -11,7 +12,7 @@ class CartService
 {
     public function items(): Collection
     {
-        return $this->query()->with(['product.category', 'product.tax'])->get();
+        return $this->query()->with(['product.category', 'product.tax', 'variant'])->get();
     }
 
     public function count(): int
@@ -24,13 +25,22 @@ class CartService
         return $this->items()->sum(fn (CartItem $item) => $item->subtotal());
     }
 
-    public function add(Product $product, int $quantity = 1): void
+    public function add(Product $product, int $quantity = 1, ?ProductVariant $variant = null): void
     {
-        $item = $this->query()->where('product_id', $product->id)->first();
+        $availableStock = $variant?->stock ?? $product->stock;
+        $query = $this->query()->where('product_id', $product->id);
+
+        if ($variant) {
+            $query->where('variant_id', $variant->id);
+        } else {
+            $query->whereNull('variant_id');
+        }
+
+        $item = $query->first();
 
         if ($item) {
             $item->update([
-                'quantity' => min($item->quantity + $quantity, $product->stock),
+                'quantity' => min($item->quantity + $quantity, $availableStock),
             ]);
 
             return;
@@ -40,7 +50,8 @@ class CartService
             'user_id' => Auth::id(),
             'session_id' => Auth::check() ? null : session()->getId(),
             'product_id' => $product->id,
-            'quantity' => min($quantity, $product->stock),
+            'variant_id' => $variant?->id,
+            'quantity' => min($quantity, $availableStock),
         ]);
     }
 
@@ -53,7 +64,7 @@ class CartService
         }
 
         $item->update([
-            'quantity' => min($quantity, $item->product->stock),
+            'quantity' => min($quantity, $item->variant?->stock ?? $item->product->stock),
         ]);
     }
 
@@ -76,6 +87,11 @@ class CartService
             ->each(function (CartItem $guestItem) use ($userId) {
                 $existing = CartItem::where('user_id', $userId)
                     ->where('product_id', $guestItem->product_id)
+                    ->when(
+                        $guestItem->variant_id,
+                        fn ($query) => $query->where('variant_id', $guestItem->variant_id),
+                        fn ($query) => $query->whereNull('variant_id'),
+                    )
                     ->first();
 
                 if ($existing) {

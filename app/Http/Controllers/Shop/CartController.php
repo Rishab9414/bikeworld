@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Shop;
 use App\Http\Controllers\Controller;
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Services\CartService;
 use App\Services\TaxService;
@@ -44,13 +45,23 @@ class CartController extends Controller
 
     public function store(Request $request, Product $product)
     {
-        abort_unless($product->is_active && $product->isInStock(), 404);
+        $variant = null;
+        if ($request->filled('variant_id')) {
+            $variant = $product->variants()
+                ->where('id', $request->variant_id)
+                ->where('is_active', true)
+                ->firstOrFail();
+        }
+
+        $availableStock = $variant?->stock ?? $product->stock;
+        abort_unless($product->is_active && $availableStock > 0, 404);
 
         $request->validate([
-            'quantity' => ['required', 'integer', 'min:1', 'max:'.$product->stock],
+            'quantity' => ['required', 'integer', 'min:1', 'max:'.$availableStock],
+            'variant_id' => ['nullable', 'exists:product_variants,id'],
         ]);
 
-        $this->cart->add($product, (int) $request->quantity);
+        $this->cart->add($product, (int) $request->quantity, $variant);
 
         return redirect()->route('cart.index')->with('success', 'Product added to cart.');
     }
@@ -60,7 +71,7 @@ class CartController extends Controller
         $this->authorizeCartItem($cartItem);
 
         $request->validate([
-            'quantity' => ['required', 'integer', 'min:0', 'max:'.$cartItem->product->stock],
+            'quantity' => ['required', 'integer', 'min:0', 'max:'.($cartItem->variant?->stock ?? $cartItem->product->stock)],
         ]);
 
         $this->cart->update($cartItem, (int) $request->quantity);

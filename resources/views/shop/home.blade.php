@@ -116,10 +116,10 @@
                     ?? 'https://images.unsplash.com/photo-1558981403-c5f9899a28f0?w=800&q=80';
             @endphp
             <a href="{{ route('products.index', ['category' => $category->slug]) }}"
-               class="group relative rounded-2xl overflow-hidden aspect-[4/5] bg-brand-black shadow-lg hover:shadow-xl hover:shadow-brand-red/10 transition-all duration-500 hover:-translate-y-2"
+               class="group relative rounded-2xl overflow-hidden aspect-[4/5] bg-zinc-100 shadow-lg hover:shadow-xl hover:shadow-brand-red/10 transition-all duration-500 hover:-translate-y-2"
                style="transition-delay: {{ $loop->index * 50 }}ms">
-                <img src="{{ $catImage }}" alt="{{ $category->name }}" class="w-full h-full object-cover opacity-85 group-hover:opacity-70 group-hover:scale-110 transition-all duration-500">
-                <div class="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-black/25 to-transparent"></div>
+                <img src="{{ $catImage }}" alt="{{ $category->name }}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/50 to-transparent pointer-events-none"></div>
                 <div class="absolute bottom-0 left-0 right-0 p-4 lg:p-5">
                     <h3 class="text-white font-bold text-sm lg:text-base">{{ $category->name }}</h3>
                     <p class="text-zinc-400 text-xs mt-0.5">{{ $category->products_count }} products</p>

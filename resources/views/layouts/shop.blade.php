@@ -30,7 +30,7 @@
     @endif
 
     {{-- Navbar --}}
-    <nav class="bg-white border-b border-zinc-100 sticky top-0 z-50 shadow-sm overflow-x-hidden w-full">
+    <nav class="bg-white border-b border-zinc-100 sticky top-0 z-50 shadow-sm w-full">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0">
             <div class="flex justify-between items-center h-16 lg:h-20 min-w-0 gap-2">
                 <a href="{{ route('home') }}" class="flex items-center gap-3 shrink min-w-0 max-w-[45%] sm:max-w-none">
@@ -52,21 +52,30 @@
                     <a href="{{ route('blog.index') }}" class="text-sm font-semibold {{ request()->routeIs('blog.*') ? 'text-brand-red' : 'text-brand-black hover:text-brand-red' }} transition-colors">Blog</a>
 
                     @if(($menuCategories ?? collect())->isNotEmpty())
-                    <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                    <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
                         <button type="button" @click="open = !open"
-                            class="flex items-center gap-1 text-sm font-semibold transition-colors {{ request()->routeIs('products.*') && request('category') ? 'text-brand-red' : 'text-brand-black hover:text-brand-red' }}">
+                            class="flex items-center gap-1 text-sm font-semibold transition-colors {{ request()->routeIs('products.*') && request('category') ? 'text-brand-red' : 'text-brand-black hover:text-brand-red' }}"
+                            :aria-expanded="open">
                             Categories
                             <svg class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
-                        <div x-show="open" x-cloak x-transition
-                            class="absolute top-full left-0 mt-2 w-56 bg-white border border-zinc-100 rounded-xl shadow-lg py-2 z-50 max-h-80 overflow-y-auto">
+                        <div x-show="open" x-cloak
+                            x-transition:enter="transition ease-out duration-150"
+                            x-transition:enter-start="opacity-0 -translate-y-1"
+                            x-transition:enter-end="opacity-100 translate-y-0"
+                            x-transition:leave="transition ease-in duration-100"
+                            x-transition:leave-start="opacity-100 translate-y-0"
+                            x-transition:leave-end="opacity-0 -translate-y-1"
+                            class="absolute left-0 top-full pt-2 z-[100]">
+                            <div class="w-56 min-w-max max-w-xs bg-white border border-zinc-100 rounded-xl shadow-xl py-2 max-h-80 overflow-y-auto">
                             @foreach($menuCategories as $category)
                             <a href="{{ route('products.index', ['category' => $category->slug]) }}"
                                @click="open = false"
-                               class="block px-4 py-2.5 text-sm font-medium {{ request('category') === $category->slug ? 'text-brand-red bg-red-50' : 'text-brand-black hover:text-brand-red hover:bg-zinc-50' }} transition-colors">
+                               class="block px-4 py-2.5 text-sm font-medium whitespace-nowrap {{ request('category') === $category->slug ? 'text-brand-red bg-red-50' : 'text-brand-black hover:text-brand-red hover:bg-zinc-50' }} transition-colors">
                                 {{ $category->name }}
                             </a>
                             @endforeach
+                            </div>
                         </div>
                     </div>
                     @endif

@@ -43,4 +43,28 @@ class CartItem extends Model
     {
         return $this->lineTotal();
     }
+
+    public function displayImageUrl(): ?string
+    {
+        if ($this->variant?->imageUrl()) {
+            return $this->variant->imageUrl();
+        }
+
+        return $this->product?->displayImageUrl();
+    }
+
+    public function displayPrice(): float
+    {
+        return (float) ($this->variant?->price ?? $this->product?->selling_price ?? $this->product?->price ?? 0);
+    }
+
+    public function availableStock(): int
+    {
+        return (int) ($this->variant?->stock ?? $this->product?->stock ?? 0);
+    }
+
+    public function variantLabel(): ?string
+    {
+        return $this->variant?->label();
+    }
 }

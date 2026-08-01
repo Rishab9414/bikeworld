@@ -103,6 +103,17 @@ class Product extends Model
         return $this->primary_image ?? $this->image ?? $this->thumbnail;
     }
 
+    public function displayImageUrl(): ?string
+    {
+        $path = $this->displayImage();
+
+        if (empty($path)) {
+            return null;
+        }
+
+        return str_starts_with($path, 'http') ? $path : asset('storage/'.$path);
+    }
+
     public function statusLabel(): string
     {
         return match ($this->status) {

@@ -250,7 +250,7 @@
 <script type="module">
 const masters = @json($m);
 window.productFormMasters = masters;
-const existingVariants = @json($p->variants ?? []);
+const existingVariants = @json(($p->variants ?? collect())->map(fn ($v) => array_merge($v->toArray(), ['image_url' => $v->imageUrl()]))->values());
 const existingFeatures = @json($p->features?->pluck('feature') ?? []);
 
 const form = document.getElementById('product-form');
