@@ -4,6 +4,24 @@
 @section('page-subtitle', 'Manage full-width slider banners linked to categories')
 
 @section('content')
+<div class="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4">
+    <div class="flex flex-wrap items-start gap-4">
+        <div class="shrink-0 w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <div>
+            <p class="font-semibold text-indigo-900">Recommended banner size</p>
+            <p class="text-sm text-indigo-800 mt-1">
+                Upload images at <strong>{{ config('banners.recommended_width') }} × {{ config('banners.recommended_height') }} px</strong>
+                (aspect ratio {{ config('banners.aspect_ratio') }}, landscape).
+                Minimum {{ config('banners.min_width') }} × {{ config('banners.min_height') }} px.
+                Max file size {{ number_format(config('banners.max_file_size_kb') / 1024, 0) }} MB. JPG, PNG, or WebP.
+            </p>
+            <p class="text-xs text-indigo-700/80 mt-2">Banners display full-width on the homepage slider (up to 860px tall). Use wide landscape images — important text should stay in the left-center area.</p>
+        </div>
+    </div>
+</div>
+
 <div class="mb-4 flex justify-between items-center">
     <p class="text-sm text-slate-500">{{ $banners->count() }} banner(s) · Click order controls sort on storefront</p>
     <a href="{{ route('admin.banners.create') }}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20">
@@ -19,6 +37,7 @@
                 <th class="px-5 py-3 text-left font-semibold text-slate-600">Preview</th>
                 <th class="px-5 py-3 text-left font-semibold text-slate-600">Title</th>
                 <th class="px-5 py-3 text-left font-semibold text-slate-600">Category</th>
+                <th class="px-5 py-3 text-center font-semibold text-slate-600">Size</th>
                 <th class="px-5 py-3 text-center font-semibold text-slate-600">Order</th>
                 <th class="px-5 py-3 text-center font-semibold text-slate-600">Status</th>
                 <th class="px-5 py-3 text-right font-semibold text-slate-600">Actions</th>
@@ -35,6 +54,9 @@
                     @if($banner->subtitle)<p class="text-xs text-slate-400 mt-0.5">{{ Str::limit($banner->subtitle, 60) }}</p>@endif
                 </td>
                 <td class="px-5 py-3 text-slate-600">{{ $banner->category?->name ?? '—' }}</td>
+                <td class="px-5 py-3 text-center text-xs whitespace-nowrap {{ $banner->matchesRecommendedSize() ? 'text-emerald-600' : 'text-amber-600' }}">
+                    {{ $banner->imageDimensionsLabel() }}
+                </td>
                 <td class="px-5 py-3 text-center text-slate-600">{{ $banner->sort_order }}</td>
                 <td class="px-5 py-3 text-center">
                     <span class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full {{ $banner->is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">
@@ -54,7 +76,7 @@
                 </td>
             </tr>
             @empty
-            <tr><td colspan="6" class="px-6 py-12 text-center text-slate-400">No banners yet. Add your first homepage slider banner.</td></tr>
+            <tr><td colspan="7" class="px-6 py-12 text-center text-slate-400">No banners yet. Add your first homepage slider banner.</td></tr>
             @endforelse
         </tbody>
     </table>

@@ -44,7 +44,7 @@
         @endif
     </div>
 
-    @if($shipment && ($shipment->tracking_url || $shipment->waybill))
+    @if($shipment && ($shipment->tracking_url || $shipment->waybill || $shipment->tracking_number))
     <div class="bg-white rounded-2xl border border-zinc-100 p-6 mb-6 shadow-sm">
         <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
             <h2 class="text-lg font-bold text-brand-black">Shipment Tracking</h2>
@@ -60,10 +60,10 @@
                 <dd class="font-semibold text-brand-black sm:mt-0.5">{{ $shipment->courier_name }}</dd>
             </div>
             @endif
-            @if($shipment->waybill)
+            @if($shipment->waybill || $shipment->tracking_number)
             <div class="flex justify-between sm:block">
                 <dt class="text-zinc-500">Tracking / AWB No.</dt>
-                <dd class="font-semibold text-brand-black sm:mt-0.5 font-mono">{{ $shipment->waybill }}</dd>
+                <dd class="font-semibold text-brand-black sm:mt-0.5 font-mono">{{ $shipment->waybill ?: $shipment->tracking_number }}</dd>
             </div>
             @endif
             @if($shipment->estimated_delivery)

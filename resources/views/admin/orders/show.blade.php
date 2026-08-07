@@ -53,29 +53,53 @@
             <div class="bg-white rounded-2xl border p-5"><h4 class="font-bold mb-2">Shipping Address</h4><p class="text-sm text-slate-600 whitespace-pre-line">{{ $o->shipping_address }}</p></div>
         </div>
 
-        {{-- Shipment --}}
+        {{-- Manual Shipment --}}
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <h3 class="font-bold text-lg mb-4">Shipment (Delhivery)</h3>
+            <h3 class="font-bold text-lg mb-1">Manual Shipment</h3>
+            <p class="text-xs text-slate-400 mb-4">Manage shipping yourself — enter courier and tracking details, then generate label &amp; invoice.</p>
+
             @if($ship)
-            <dl class="grid sm:grid-cols-2 gap-3 text-sm">
+            <dl class="grid sm:grid-cols-2 gap-3 text-sm mb-5">
                 <div><dt class="text-slate-500">Courier</dt><dd class="font-medium">{{ $ship->courier_name }}</dd></div>
-                <div><dt class="text-slate-500">AWB / Waybill</dt><dd class="font-mono font-medium">{{ $ship->waybill ?? '—' }}</dd></div>
-                <div><dt class="text-slate-500">Tracking Number</dt><dd>{{ $ship->tracking_number ?? '—' }}</dd></div>
-                <div><dt class="text-slate-500">Pickup Date</dt><dd>{{ $ship->pickup_date?->format('M d, Y') ?? '—' }}</dd></div>
+                <div><dt class="text-slate-500">Tracking ID / AWB</dt><dd class="font-mono font-medium">{{ $ship->tracking_number ?? $ship->waybill ?? '—' }}</dd></div>
                 <div><dt class="text-slate-500">Est. Delivery</dt><dd>{{ $ship->estimated_delivery?->format('M d, Y') ?? '—' }}</dd></div>
                 <div><dt class="text-slate-500">Shipment Status</dt><dd><span class="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-xs font-semibold">{{ $ship->statusLabel() }}</span></dd></div>
-                @if($ship->tracking_url)<div class="sm:col-span-2"><dt class="text-slate-500">Tracking Link</dt><dd><a href="{{ $ship->tracking_url }}" target="_blank" class="text-indigo-600 hover:underline">{{ $ship->tracking_url }}</a></dd></div>@endif
+                @if($ship->tracking_url)<div class="sm:col-span-2"><dt class="text-slate-500">Tracking Link</dt><dd><a href="{{ $ship->tracking_url }}" target="_blank" class="text-indigo-600 hover:underline break-all">{{ $ship->tracking_url }}</a></dd></div>@endif
             </dl>
             @if($ship->tracking->isNotEmpty())
-            <div class="mt-4 pt-4 border-t"><h4 class="text-sm font-semibold mb-2">Tracking Scans</h4>
+            <div class="mb-5 pt-4 border-t"><h4 class="text-sm font-semibold mb-2">Tracking History</h4>
                 @foreach($ship->tracking->sortByDesc('scan_time') as $scan)
                 <div class="flex justify-between text-xs py-2 border-b border-slate-50"><span>{{ $scan->status }} @if($scan->location)· {{ $scan->location }}@endif</span><span class="text-slate-400">{{ $scan->scan_time?->format('M d H:i') }}</span></div>
                 @endforeach
             </div>
             @endif
-            @else
-            <p class="text-slate-400 text-sm">No shipment created yet. Confirm order and click "Create Shipment".</p>
             @endif
+
+            <form id="shipment-form" class="space-y-3 border-t pt-4">
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Courier Name</label>
+                        <input type="text" name="courier_name" value="{{ old('courier_name', $ship->courier_name ?? '') }}" placeholder="e.g. DTDC, India Post" class="w-full rounded-xl border-slate-200 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Tracking ID / AWB *</label>
+                        <input type="text" name="tracking_number" value="{{ old('tracking_number', $ship->tracking_number ?? $ship->waybill ?? '') }}" required placeholder="Enter tracking number" class="w-full rounded-xl border-slate-200 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Tracking URL (optional)</label>
+                        <input type="url" name="tracking_url" value="{{ old('tracking_url', $ship->tracking_url ?? '') }}" placeholder="https://..." class="w-full rounded-xl border-slate-200 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Estimated Delivery</label>
+                        <input type="date" name="estimated_delivery" value="{{ old('estimated_delivery', optional($ship?->estimated_delivery)->format('Y-m-d')) }}" class="w-full rounded-xl border-slate-200 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Remarks (optional)</label>
+                        <input type="text" name="remarks" placeholder="Dispatched from warehouse" class="w-full rounded-xl border-slate-200 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <button type="submit" class="px-4 py-2.5 text-sm font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700">Save Shipment Details</button>
+            </form>
         </div>
 
         {{-- Timeline --}}
@@ -112,7 +136,7 @@
 
         <div class="bg-white rounded-2xl border p-6 mb-4">
             <h3 class="font-bold mb-3">Manual Status Update</h3>
-            <p class="text-xs text-slate-400 mb-2">Override the order status directly (independent of Delhivery). The customer/admin timeline is updated.</p>
+            <p class="text-xs text-slate-400 mb-2">Update order status manually.</p>
             <select id="manual-status" class="w-full rounded-xl border-slate-200 text-sm focus:border-indigo-500 focus:ring-indigo-500 mb-2">
                 @foreach([
                     'pending' => 'Pending',
@@ -137,16 +161,12 @@
         <div class="bg-white rounded-2xl border p-6 space-y-2" id="order-actions">
             <h3 class="font-bold mb-3">Actions</h3>
             <button data-action="confirm" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100">✓ Confirm Order</button>
-            <button data-action="create-shipment" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100">📦 Create Shipment</button>
             <button data-action="generate-invoice" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🧾 Generate Invoice</button>
             <a href="{{ route('admin.orders.invoice', $o) }}" target="_blank" class="block w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🖨️ Print Invoice</a>
-            @if($ship)
-            <button data-action="generate-label" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🏷️ Generate Label</button>
+            <button data-action="generate-label" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🏷️ Generate Shipping Label</button>
+            @if($ship && ($ship->tracking_number || $ship->waybill))
             <a href="{{ route('admin.orders.label', $o) }}" target="_blank" class="block w-full text-left px-4 py-2.5 text-sm font-semibold bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100">🖨️ Print Shipping Label</a>
             @endif
-            <button data-action="schedule-pickup" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100">🚚 Schedule Pickup</button>
-            <button data-action="track" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100">📍 Track Shipment</button>
-            <button data-action="cancel-shipment" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-amber-50 text-amber-700 rounded-xl hover:bg-amber-100">✕ Cancel Shipment</button>
             <button data-action="return" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-orange-50 text-orange-700 rounded-xl hover:bg-orange-100">↩ Return</button>
             <button data-action="refund" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold bg-red-50 text-red-700 rounded-xl hover:bg-red-100">💸 Refund</button>
             <button data-action="cancel" class="action-btn w-full text-left px-4 py-2.5 text-sm font-semibold border border-red-200 text-red-600 rounded-xl hover:bg-red-50">Cancel Order</button>
@@ -161,16 +181,29 @@ const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 const base = @js(url('/admin/orders/'.$o->id));
 const routes = {
     confirm: { method: 'PATCH', url: `${base}/confirm` },
-    'create-shipment': { method: 'POST', url: `${base}/create-shipment` },
     'generate-invoice': { method: 'POST', url: `${base}/generate-invoice` },
     'generate-label': { method: 'POST', url: `${base}/generate-label` },
-    'schedule-pickup': { method: 'POST', url: `${base}/schedule-pickup` },
-    track: { method: 'POST', url: `${base}/track` },
-    'cancel-shipment': { method: 'POST', url: `${base}/cancel-shipment` },
     return: { method: 'POST', url: `${base}/return` },
     refund: { method: 'POST', url: `${base}/refund` },
     cancel: { method: 'POST', url: `${base}/cancel` },
 };
+
+document.getElementById('shipment-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const payload = Object.fromEntries(new FormData(form).entries());
+    try {
+        const res = await fetch(`${base}/save-shipment`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        alert(json.message || (json.success ? 'Saved.' : 'Failed'));
+        if (json.success) location.reload();
+    } catch (err) { alert(err.message); }
+});
+
 const manualBtn = document.getElementById('manual-status-btn');
 if (manualBtn) {
     manualBtn.addEventListener('click', async () => {

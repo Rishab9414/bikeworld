@@ -66,7 +66,7 @@
 <div class="row">
     <div>
         <div class="brand">{{ config('app.name', 'BikeWorld') }}</div>
-        <div class="muted">Delhivery Shipping Label</div>
+        <div class="muted">Shipping Label</div>
     </div>
     <div class="pill">{{ $payment }}@if($cod) · COD ₹{{ number_format((float) $cod, 2) }}@endif</div>
 </div>

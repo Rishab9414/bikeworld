@@ -87,15 +87,11 @@ Route::middleware('admin.auth')->group(function () {
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         Route::patch('/{order}/confirm', [OrderController::class, 'confirm'])->name('confirm');
         Route::post('/{order}/update-status', [OrderController::class, 'updateStatus'])->name('update-status');
-        Route::post('/{order}/create-shipment', [OrderController::class, 'createShipment'])->name('create-shipment');
-        Route::post('/{order}/create-shipment-sync', [OrderController::class, 'createShipmentSync'])->name('create-shipment-sync');
+        Route::post('/{order}/save-shipment', [OrderController::class, 'saveShipment'])->name('save-shipment');
         Route::post('/{order}/generate-invoice', [OrderController::class, 'generateInvoice'])->name('generate-invoice');
         Route::post('/{order}/generate-label', [OrderController::class, 'generateLabel'])->name('generate-label');
         Route::get('/{order}/invoice', [OrderController::class, 'printInvoice'])->name('invoice');
         Route::get('/{order}/label', [OrderController::class, 'printLabel'])->name('label');
-        Route::post('/{order}/schedule-pickup', [OrderController::class, 'schedulePickup'])->name('schedule-pickup');
-        Route::post('/{order}/track', [OrderController::class, 'trackShipment'])->name('track');
-        Route::post('/{order}/cancel-shipment', [OrderController::class, 'cancelShipment'])->name('cancel-shipment');
         Route::post('/{order}/cancel', [OrderController::class, 'cancel'])->name('cancel');
         Route::post('/{order}/refund', [OrderController::class, 'refund'])->name('refund');
         Route::post('/{order}/return', [OrderController::class, 'returnOrder'])->name('return');

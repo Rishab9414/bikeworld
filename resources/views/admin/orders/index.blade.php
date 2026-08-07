@@ -1,7 +1,7 @@
 @extends('admin.layouts.app')
 @section('title', 'Orders')
 @section('page-title', 'Orders')
-@section('page-subtitle', 'Manage orders, shipments & Delhivery tracking')
+@section('page-subtitle', 'Manage orders, manual shipping & tracking')
 
 @push('scripts')
 <script>

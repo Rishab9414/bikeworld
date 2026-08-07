@@ -5,6 +5,10 @@
 @php
     $img = $product->displayImage();
     $defaultImageUrl = $img ? asset('storage/'.$img) : null;
+    $galleryUrls = $product->galleryImageUrls();
+    if (empty($galleryUrls) && $defaultImageUrl) {
+        $galleryUrls = [$defaultImageUrl];
+    }
     $price = $product->selling_price ?? $product->price;
     $mrp = $product->mrp ?? $product->compare_price;
     $discount = $mrp && $mrp > $price ? round((($mrp - $price) / $mrp) * 100) : 0;
@@ -26,6 +30,8 @@
         hasVariants: @js($hasVariants),
         selectedId: null,
         defaultImage: @js($defaultImageUrl),
+        galleryImages: @js($galleryUrls),
+        activeImage: @js($galleryUrls[0] ?? $defaultImageUrl),
         basePrice: @js((float) $price),
         baseMrp: @js($mrp ? (float) $mrp : null),
         baseStock: @js((int) $product->stock),
@@ -38,7 +44,10 @@
             return this.variants.find(v => v.id === this.selectedId) || null;
         },
         get displayImage() {
-            return this.selected?.image || this.defaultImage;
+            if (this.hasVariants && this.selected?.image) {
+                return this.selected.image;
+            }
+            return this.activeImage || this.defaultImage;
         },
         get displayPrice() {
             return this.selected?.price ?? this.basePrice;
@@ -86,6 +95,15 @@
             <div class="absolute top-4 right-4">
                 <x-wishlist-button :product="$product" size="lg" />
             </div>
+        </div>
+        <div x-show="!hasVariants && galleryImages.length > 1" x-cloak class="grid grid-cols-5 gap-3 mt-3">
+            <template x-for="(image, index) in galleryImages" :key="image + index">
+                <button type="button" @click="activeImage = image"
+                    :class="activeImage === image ? 'ring-2 ring-brand-red border-brand-red' : 'border-zinc-200 hover:border-brand-red/40'"
+                    class="aspect-square rounded-xl overflow-hidden border bg-zinc-50">
+                    <img :src="image" alt="{{ $product->name }} thumbnail" class="w-full h-full object-cover">
+                </button>
+            </template>
         </div>
 
         <div>

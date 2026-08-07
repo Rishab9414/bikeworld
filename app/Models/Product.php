@@ -21,7 +21,7 @@ class Product extends Model
         'discount_percent', 'offer_price', 'dealer_price', 'wholesale_price', 'tax_included', 'commission',
         'stock', 'reserved_stock', 'low_stock_alert', 'warehouse', 'rack_number', 'reorder_level',
         'image', 'primary_image', 'thumbnail', 'gallery', 'video_url', 'youtube_url',
-        'weight', 'length', 'width', 'height', 'shipping_class', 'free_shipping', 'cod_available',
+        'weight', 'length', 'width', 'height', 'shipping_class', 'shipping_cost', 'free_shipping', 'cod_available',
         'meta_title', 'meta_keywords', 'meta_description', 'canonical_url', 'og_image',
         'status', 'is_active', 'featured', 'trending', 'new_arrival', 'best_seller',
     ];
@@ -44,6 +44,7 @@ class Product extends Model
             'length' => 'decimal:2',
             'width' => 'decimal:2',
             'height' => 'decimal:2',
+            'shipping_cost' => 'decimal:2',
             'gallery' => 'array',
             'is_active' => 'boolean',
             'featured' => 'boolean',
@@ -112,6 +113,33 @@ class Product extends Model
         }
 
         return str_starts_with($path, 'http') ? $path : asset('storage/'.$path);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function galleryImages(): array
+    {
+        $images = collect($this->gallery ?? [])
+            ->filter(fn ($path) => is_string($path) && $path !== '')
+            ->values();
+
+        $primary = $this->displayImage();
+        if ($primary && ! $images->contains($primary)) {
+            $images->prepend($primary);
+        }
+
+        return $images->unique()->values()->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function galleryImageUrls(): array
+    {
+        return collect($this->galleryImages())
+            ->map(fn ($path) => str_starts_with($path, 'http') ? $path : asset('storage/'.$path))
+            ->all();
     }
 
     public function statusLabel(): string

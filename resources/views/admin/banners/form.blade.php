@@ -44,15 +44,18 @@
 
         <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1">Image URL {{ $isEdit ? '' : '*' }}</label>
+            <p class="text-xs text-slate-500 mb-2">Recommended size: <strong>{{ \App\Models\Banner::recommendedSizeLabel() }}</strong> (landscape, {{ config('banners.aspect_ratio') }}). Min {{ config('banners.min_width') }} × {{ config('banners.min_height') }} px.</p>
             <input type="text" name="image" value="{{ old('image', $isEdit ? $banner->image : '') }}" placeholder="https://... or leave blank if uploading file" class="w-full rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
             @if($isEdit && $banner->image)
             <img src="{{ $banner->imageUrl() }}" alt="" class="mt-2 w-full max-w-md h-32 object-cover rounded-xl border">
+            <p class="text-xs text-slate-500 mt-1">Current size: {{ $banner->imageDimensionsLabel() }} @if($banner->imageDimensionsLabel() !== '—' && ! $banner->matchesRecommendedSize())<span class="text-amber-600">— below recommended minimum</span>@endif</p>
             @endif
         </div>
 
         <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1">Or upload image</label>
-            <input type="file" name="image_file" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700">
+            <input type="file" name="image_file" accept="image/jpeg,image/png,image/webp" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700">
+            <p class="text-xs text-slate-500 mt-1">Use {{ \App\Models\Banner::recommendedSizeLabel() }} for best results on the homepage slider.</p>
         </div>
 
         <div class="grid sm:grid-cols-2 gap-4">

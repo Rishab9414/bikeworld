@@ -38,7 +38,7 @@ class OrderService
             $subtotal = $taxSummary['subtotal'];
             $tax = $taxSummary['tax_amount'];
             $itemsTotal = $cartItems->sum(fn ($i) => $i->subtotal());
-            $shipping = (float) ($data['shipping_charge'] ?? config('delhivery.default_shipping_charge', 99));
+            $shipping = (float) ($data['shipping_charge'] ?? config('shipping.default_product_shipping', 99));
             $couponDiscount = (float) ($data['coupon_discount'] ?? 0);
             $coupon = $data['coupon'] ?? null;
             $discount = $couponDiscount + (float) ($data['wallet_discount'] ?? 0);

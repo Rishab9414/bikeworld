@@ -234,6 +234,7 @@ class ProductController extends Controller
             'width' => ['nullable', 'numeric', 'min:0'],
             'height' => ['nullable', 'numeric', 'min:0'],
             'shipping_class' => ['nullable', 'string', 'max:100'],
+            'shipping_cost' => ['nullable', 'numeric', 'min:0'],
             'free_shipping' => ['nullable', 'boolean'],
             'cod_available' => ['nullable', 'boolean'],
             'meta_title' => ['nullable', 'string', 'max:255'],
@@ -247,6 +248,9 @@ class ProductController extends Controller
             'best_seller' => ['nullable', 'boolean'],
             'primary_image' => ['nullable', 'image', 'max:5120'],
             'thumbnail' => ['nullable', 'image', 'max:5120'],
+            'existing_gallery' => ['nullable', 'array'],
+            'existing_gallery.*' => ['nullable', 'string', 'max:500'],
+            'gallery' => ['nullable', 'array'],
             'gallery.*' => ['nullable', 'image', 'max:5120'],
             'bike_model_ids' => ['nullable', 'array'],
             'bike_model_ids.*' => ['exists:bike_models,id'],
@@ -301,15 +305,42 @@ class ProductController extends Controller
             $data['thumbnail'] = $request->file('thumbnail')->store('products', 'public');
         }
 
-        if ($request->hasFile('gallery')) {
-            $gallery = $existing?->gallery ?? [];
-            foreach ($request->file('gallery') as $file) {
-                $gallery[] = $file->store('products', 'public');
-            }
-            $data['gallery'] = $gallery;
-        }
+        $data['gallery'] = $this->syncGalleryImages($request, $existing);
 
         return $data;
+    }
+
+    private function syncGalleryImages(Request $request, ?Product $existing = null): ?array
+    {
+        $gallery = collect($existing?->gallery ?? [])
+            ->filter(fn ($path) => is_string($path) && $path !== '')
+            ->values()
+            ->all();
+
+        if ($request->has('gallery_sync')) {
+            $keep = collect($request->input('existing_gallery', []))
+                ->filter(fn ($path) => is_string($path) && $path !== '')
+                ->values()
+                ->all();
+
+            $removed = array_diff($gallery, $keep);
+            foreach ($removed as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            $gallery = $keep;
+        }
+
+        $uploads = $request->file('gallery');
+        if ($uploads !== null) {
+            foreach (is_array($uploads) ? $uploads : [$uploads] as $file) {
+                if ($file && $file->isValid()) {
+                    $gallery[] = $file->store('products', 'public');
+                }
+            }
+        }
+
+        return $gallery !== [] ? array_values($gallery) : null;
     }
 
     private function syncRelations(Product $product, Request $request): void

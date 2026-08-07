@@ -121,8 +121,26 @@
                 <h3 class="font-bold text-slate-900 text-lg">Images & Media</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div><label class="block text-sm font-medium text-slate-700 mb-1">Primary Image</label><input type="file" name="primary_image" accept="image/*" class="admin-input text-sm">@if($p->primary_image)<img src="{{ asset('storage/'.$p->primary_image) }}" class="mt-2 w-24 h-24 object-cover rounded-lg">@endif</div>
-                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Thumbnail</label><input type="file" name="thumbnail" accept="image/*" class="admin-input text-sm"></div>
-                    <div class="sm:col-span-2"><label class="block text-sm font-medium text-slate-700 mb-1">Gallery Images</label><input type="file" name="gallery[]" accept="image/*" multiple class="admin-input text-sm"></div>
+                    <div><label class="block text-sm font-medium text-slate-700 mb-1">Thumbnail</label><input type="file" name="thumbnail" accept="image/*" class="admin-input text-sm">@if($p->thumbnail)<img src="{{ asset('storage/'.$p->thumbnail) }}" class="mt-2 w-24 h-24 object-cover rounded-lg">@endif</div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Gallery Images</label>
+                        @if($isEdit)<input type="hidden" name="gallery_sync" value="1">@endif
+                        @php $galleryImages = old('existing_gallery', $p->gallery ?? []); @endphp
+                        @if(!empty($galleryImages))
+                        <div class="flex flex-wrap gap-3 mb-3" id="gallery-existing">
+                            @foreach($galleryImages as $image)
+                            <label class="relative group block w-24 h-24 rounded-lg overflow-hidden border border-slate-200 cursor-pointer">
+                                <input type="hidden" name="existing_gallery[]" value="{{ $image }}">
+                                <img src="{{ asset('storage/'.$image) }}" alt="Gallery image" class="w-full h-full object-cover">
+                                <span class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold">Remove</span>
+                                <input type="checkbox" class="gallery-remove peer sr-only" value="{{ $image }}">
+                            </label>
+                            @endforeach
+                        </div>
+                        @endif
+                        <input type="file" name="gallery[]" accept="image/*" multiple class="admin-input text-sm">
+                        <p class="text-xs text-slate-500 mt-1">Upload additional images. Click an existing image to remove it before saving.</p>
+                    </div>
                     <div><label class="block text-sm font-medium text-slate-700 mb-1">Video URL</label><input name="video_url" value="{{ old('video_url', $p->video_url) }}" class="admin-input text-sm"></div>
                     <div><label class="block text-sm font-medium text-slate-700 mb-1">YouTube URL</label><input name="youtube_url" value="{{ old('youtube_url', $p->youtube_url) }}" class="admin-input text-sm"></div>
                 </div>
@@ -138,6 +156,8 @@
                     <div><label class="block text-sm font-medium text-slate-700 mb-1">Height (cm)</label><input name="height" type="number" step="0.01" value="{{ old('height', $p->height) }}" class="admin-input text-sm"></div>
                 </div>
                 <div><label class="block text-sm font-medium text-slate-700 mb-1">Shipping Class</label><input name="shipping_class" value="{{ old('shipping_class', $p->shipping_class) }}" class="admin-input text-sm max-w-xs"></div>
+                <div><label class="block text-sm font-medium text-slate-700 mb-1">Shipping Cost (₹)</label><input name="shipping_cost" type="number" step="0.01" min="0" value="{{ old('shipping_cost', $p->shipping_cost) }}" class="admin-input text-sm max-w-xs" placeholder="Leave blank for default ₹99"></div>
+                <p class="text-xs text-slate-500">Per unit shipping charge added at checkout. If empty, ₹99 is used by default.</p>
                 <label class="flex items-center gap-2"><input type="checkbox" name="free_shipping" value="1" @checked(old('free_shipping', $p->free_shipping)) class="rounded text-indigo-600"><span class="text-sm">Free Shipping</span></label>
                 <label class="flex items-center gap-2"><input type="checkbox" name="cod_available" value="1" @checked(old('cod_available', $p->cod_available ?? true)) class="rounded text-indigo-600"><span class="text-sm">COD Available</span></label>
             </div>
@@ -346,5 +366,22 @@ document.getElementById('add-feature-btn')?.addEventListener('click', () => {
 existingVariants.forEach(v => window.productForm.addVariantRow(document.getElementById('variants-container'), masters, v));
 existingFeatures.forEach(f => window.productForm.addFeatureRow(document.getElementById('features-container'), f));
 if (!existingFeatures.length) window.productForm.addFeatureRow(document.getElementById('features-container'));
+
+document.querySelectorAll('#gallery-existing label').forEach(label => {
+    const hidden = label.querySelector('input[type="hidden"]');
+    const checkbox = label.querySelector('.gallery-remove');
+    label.addEventListener('click', (e) => {
+        e.preventDefault();
+        checkbox.checked = !checkbox.checked;
+        label.classList.toggle('ring-2', checkbox.checked);
+        label.classList.toggle('ring-red-500', checkbox.checked);
+        label.classList.toggle('opacity-50', checkbox.checked);
+        if (checkbox.checked) {
+            hidden.disabled = true;
+        } else {
+            hidden.disabled = false;
+        }
+    });
+});
 </script>
 @endpush

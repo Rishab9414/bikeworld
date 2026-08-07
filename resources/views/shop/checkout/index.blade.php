@@ -159,8 +159,8 @@
                                     <input name="shipping[pincode]" id="shipping-pincode" value="{{ old('shipping.pincode', $addr?->pincode) }}" required maxlength="6" inputmode="numeric"
                                         class="{{ $inputClass }} flex-1 min-w-0" placeholder="6 digits">
                                     <button type="button" id="check-pincode-btn"
-                                        class="shrink-0 px-4 py-2.5 rounded-lg bg-brand-red text-white text-sm font-semibold hover:bg-red-700 transition-colors">
-                                        Check
+                                        class="shrink-0 px-4 py-2.5 rounded-lg bg-zinc-100 text-zinc-700 text-sm font-semibold hover:bg-zinc-200 transition-colors">
+                                        Update
                                     </button>
                                 </div>
                                 @error('shipping.pincode')<p class="text-brand-red text-xs mt-1">{{ $message }}</p>@enderror
@@ -392,8 +392,8 @@
                                     {{ $shippingCharge === 0 ? 'Free' : '₹'.number_format($shippingCharge, 2) }}
                                 </span>
                             </div>
-                            <p id="shipping-note" class="text-xs text-zinc-400 {{ in_array($shippingQuote['source'] ?? '', ['default', 'free_shipping_threshold', 'free_shipping']) ? '' : 'hidden' }}">
-                                {{ $shippingQuote['note'] ?? 'Enter pincode for shipping rate' }}
+                            <p id="shipping-note" class="text-xs text-zinc-400 {{ in_array($shippingQuote['source'] ?? '', ['free_shipping_threshold', 'free_shipping']) ? '' : 'hidden' }}">
+                                {{ $shippingQuote['note'] ?? 'Based on product shipping charges (₹99 default if not set)' }}
                             </p>
                         </div>
 
@@ -467,7 +467,7 @@ let currentShippingCharge = {{ $shippingCharge ?? 0 }};
 const freeShippingMin = {{ $freeShippingMinAmount ?? 0 }};
 const freeShippingEnabled = {{ ($freeShippingEnabled ?? false) ? 'true' : 'false' }};
 
-let pincodeServiceable = false;
+let pincodeServiceable = true;
 
 function formatMoney(amount) {
     return '₹' + Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -481,11 +481,8 @@ function updateShippingDisplay(charge, source, note) {
         shippingAmount.textContent = formatMoney(charge);
         shippingAmount.className = 'font-medium';
     }
-    if (note && source === 'default') {
+    if (note && (source === 'manual' || source === 'default')) {
         shippingNote.textContent = note;
-        shippingNote.classList.remove('hidden');
-    } else if (source === 'delhivery') {
-        shippingNote.textContent = 'Calculated via Delhivery';
         shippingNote.classList.remove('hidden');
     } else if (source === 'free_shipping_threshold' && note) {
         shippingNote.textContent = note;
@@ -694,15 +691,13 @@ async function checkPincode() {
         pincodeResult.className = 'mt-2 text-xs text-brand-red';
         pincodeResult.textContent = 'Enter a valid 6-digit pincode.';
         pincodeResult.classList.remove('hidden');
-        pincodeServiceable = false;
-        deliveryEta.classList.add('hidden');
         return;
     }
 
     checkPincodeBtn.disabled = true;
     checkPincodeBtn.textContent = '…';
     pincodeResult.className = 'mt-2 text-xs text-zinc-500';
-    pincodeResult.textContent = 'Checking delivery…';
+    pincodeResult.textContent = 'Updating shipping…';
     pincodeResult.classList.remove('hidden');
 
     try {
@@ -712,7 +707,7 @@ async function checkPincode() {
             body: JSON.stringify({ pincode: pin, payment_method: currentPaymentMethod() }),
         });
         const data = await res.json();
-        pincodeServiceable = !!data.serviceable;
+        pincodeServiceable = true;
 
         if (typeof data.shipping_charge !== 'undefined') {
             currentShippingCharge = Number(data.shipping_charge) || 0;
@@ -720,54 +715,24 @@ async function checkPincode() {
             updateGrandTotal(itemsTotal - couponDiscount + currentShippingCharge);
         }
 
-        if (data.serviceable) {
-            pincodeResult.className = 'mt-2 text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2';
-            pincodeResult.innerHTML = '✓ ' + (data.message || 'Delivery available') +
-                (data.city ? '<br><span class="text-emerald-600">' + data.city + (data.state ? ', ' + data.state : '') + '</span>' : '');
-            deliveryEtaText.textContent = 'Expected by ' + (data.estimated_delivery_date || (data.estimated_delivery_days + ' days'));
+        pincodeResult.className = 'mt-2 text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2';
+        pincodeResult.textContent = '✓ Pincode saved. Shipping is calculated from product charges.';
+        if (data.estimated_delivery_days) {
+            deliveryEtaText.textContent = 'Estimated delivery in ' + data.estimated_delivery_days + ' business days';
             deliveryEta.classList.remove('hidden');
-
-            if (data.city && !document.getElementById('shipping-city').value) {
-                document.getElementById('shipping-city').value = data.city;
-            }
-            if (data.state && !document.getElementById('shipping-state').value) {
-                document.getElementById('shipping-state').value = data.state;
-            }
-            if (data.district && !document.getElementById('shipping-district').value) {
-                document.getElementById('shipping-district').value = data.district;
-            }
-        } else {
-            pincodeResult.className = 'mt-2 text-xs text-brand-red bg-red-50 rounded-lg px-3 py-2';
-            pincodeResult.textContent = data.message || 'Delivery not available for this pincode.';
-            deliveryEta.classList.add('hidden');
         }
     } catch (e) {
         pincodeResult.className = 'mt-2 text-xs text-brand-red';
-        pincodeResult.textContent = 'Could not check pincode. Please try again.';
-        pincodeServiceable = false;
+        pincodeResult.textContent = 'Could not update shipping. Please try again.';
     }
 
     checkPincodeBtn.disabled = false;
-    checkPincodeBtn.textContent = 'Check';
+    checkPincodeBtn.textContent = 'Update';
 }
 
 checkPincodeBtn?.addEventListener('click', checkPincode);
 pincodeInput?.addEventListener('blur', () => {
-    if (pincodeInput.value.replace(/\D/g, '').length === 6) checkPincode();
+    if (pincodeInput.value.replace(/\D/g, '').length === 6) refreshShippingQuote();
 });
-
-form.addEventListener('submit', e => {
-    const pin = pincodeInput.value.replace(/\D/g, '');
-    if (pin.length === 6 && !pincodeServiceable) {
-        e.preventDefault();
-        alert('Please check delivery availability for your pincode before placing the order.');
-        checkPincode();
-        pincodeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-});
-
-@if(old('shipping.pincode', $addr?->pincode))
-document.addEventListener('DOMContentLoaded', checkPincode);
-@endif
 </script>
 @endpush

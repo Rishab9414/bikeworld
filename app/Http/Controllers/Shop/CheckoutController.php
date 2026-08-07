@@ -9,7 +9,6 @@ use App\Models\Setting;
 use App\Services\CartService;
 use App\Services\CheckoutCustomerService;
 use App\Services\CouponService;
-use App\Services\DelhiveryService;
 use App\Services\OrderService;
 use App\Services\RazorpayService;
 use App\Services\ShippingService;
@@ -25,7 +24,6 @@ class CheckoutController extends Controller
         private OrderService $orders,
         private RazorpayService $razorpay,
         private CheckoutCustomerService $checkoutCustomer,
-        private DelhiveryService $delhivery,
         private ShippingService $shipping,
         private TaxService $tax,
         private CouponService $coupons,
@@ -51,8 +49,7 @@ class CheckoutController extends Controller
         $appliedCoupon = $couponData['coupon'] ?? null;
         $couponDiscount = $couponData['discount'] ?? 0;
         $orderAmount = max(0, $taxSummary['items_total'] - $couponDiscount);
-        $destinationPin = $defaultAddress?->pincode;
-        $shippingQuote = $this->shipping->calculateForCart($items, $destinationPin, 'online', $orderAmount);
+        $shippingQuote = $this->shipping->calculateForCart($items, null, 'online', $orderAmount);
         $shippingCharge = $shippingQuote['amount'];
         $tax = $taxSummary['tax_amount'];
         $taxLabel = $this->tax->taxLabel($items);
@@ -102,7 +99,6 @@ class CheckoutController extends Controller
 
         $items = $this->cart->items();
         $orderAmount = $this->orderAmountForShipping($items);
-        $pincodeCheck = $this->delhivery->checkPincode($request->pincode);
         $shippingQuote = $this->shipping->calculateForCart(
             $items,
             $request->pincode,
@@ -110,17 +106,22 @@ class CheckoutController extends Controller
             $orderAmount
         );
 
-        return response()->json(array_merge($pincodeCheck, [
+        return response()->json([
+            'success' => true,
+            'serviceable' => true,
+            'message' => 'Delivery available to this pincode.',
+            'cod_available' => Setting::codEnabled(),
+            'estimated_delivery_days' => (int) config('shipping.default_delivery_days', 5),
             'shipping_charge' => $shippingQuote['amount'],
             'shipping_source' => $shippingQuote['source'],
             'shipping_note' => $shippingQuote['note'],
-        ]));
+        ]);
     }
 
     public function shippingQuote(Request $request): JsonResponse
     {
         $request->validate([
-            'pincode' => ['required', 'digits:6'],
+            'pincode' => ['nullable', 'digits:6'],
             'payment_method' => ['nullable', 'in:cod,online'],
         ]);
 
@@ -129,7 +130,7 @@ class CheckoutController extends Controller
         $orderAmount = $this->orderAmountForShipping($items, $taxSummary);
         $shippingQuote = $this->shipping->calculateForCart(
             $items,
-            $request->pincode,
+            $request->input('pincode'),
             $request->input('payment_method', 'online'),
             $orderAmount
         );
@@ -206,15 +207,6 @@ class CheckoutController extends Controller
             return back()->withInput()->with('error', 'Cash on Delivery is currently unavailable. Please pay online.');
         }
 
-        $pincodeCheck = $this->delhivery->checkPincode($validated['shipping']['pincode']);
-        if (! ($pincodeCheck['serviceable'] ?? false)) {
-            return back()->withInput()->with('error', $pincodeCheck['message'] ?? 'Delivery is not available for this pincode.');
-        }
-
-        if ($validated['payment_method'] === 'cod' && ($pincodeCheck['cod_available'] ?? true) === false) {
-            return back()->withInput()->with('error', 'Cash on Delivery is not available for this pincode. Please choose online payment.');
-        }
-
         $profile = [
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'] ?? null,
@@ -266,7 +258,7 @@ class CheckoutController extends Controller
             $orderData = array_merge($addresses, [
                 'notes' => $validated['notes'] ?? null,
                 'shipping_charge' => $shippingCharge,
-                'expected_delivery' => now()->addDays($pincodeCheck['estimated_delivery_days'] ?? 5)->toDateString(),
+                'expected_delivery' => now()->addDays((int) config('shipping.default_delivery_days', 5))->toDateString(),
                 'coupon' => $coupon,
                 'coupon_discount' => $couponDiscount,
             ]);

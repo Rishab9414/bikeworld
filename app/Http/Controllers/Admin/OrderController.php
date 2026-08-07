@@ -3,17 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\CancelShipmentJob;
-use App\Jobs\CreateShipmentJob;
 use App\Jobs\GenerateInvoiceJob;
-use App\Jobs\GenerateLabelJob;
-use App\Jobs\SchedulePickupJob;
-use App\Jobs\TrackShipmentJob;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\ActivityLogger;
-use App\Services\DelhiveryService;
+use App\Services\ManualShippingService;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -135,21 +130,37 @@ class OrderController extends Controller
         ]);
     }
 
-    public function createShipment(Order $order): JsonResponse
+    public function saveShipment(Request $request, Order $order, ManualShippingService $shipping, OrderService $orders): JsonResponse
     {
-        if (! in_array($order->status, ['confirmed', 'packing', 'packed'], true)) {
-            return response()->json(['success' => false, 'message' => 'Order must be confirmed before creating shipment.'], 422);
+        if (! in_array($order->status, ['confirmed', 'packing', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'completed'], true)) {
+            return response()->json(['success' => false, 'message' => 'Confirm the order before adding shipment details.'], 422);
         }
 
-        CreateShipmentJob::dispatchSync($order->id, auth()->id());
+        $data = $request->validate([
+            'courier_name' => ['nullable', 'string', 'max:100'],
+            'tracking_number' => ['required', 'string', 'max:100'],
+            'tracking_url' => ['nullable', 'url', 'max:500'],
+            'estimated_delivery' => ['nullable', 'date'],
+            'shipment_status' => ['nullable', 'string', 'max:50'],
+            'remarks' => ['nullable', 'string', 'max:500'],
+        ]);
 
-        return response()->json(['success' => true, 'message' => 'Shipment created.', 'reload' => true]);
-    }
+        $shipment = $shipping->createOrUpdateShipment($order, array_merge($data, [
+            'add_tracking_scan' => true,
+            'remarks' => $data['remarks'] ?? 'Shipment details saved manually',
+        ]));
 
-    /** @deprecated Use createShipment — kept for backwards compatibility */
-    public function createShipmentSync(Order $order): JsonResponse
-    {
-        return $this->createShipment($order);
+        if (in_array($order->status, ['confirmed', 'packing', 'packed'], true)) {
+            $orders->updateStatus($order, 'shipped', 'Shipped', 'Tracking ID added manually', 'admin');
+        }
+
+        ActivityLogger::log('updated', 'orders', $order, "Manual shipment saved for {$order->order_number} — AWB {$shipment->tracking_number}");
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Shipment details saved.',
+            'reload' => true,
+        ]);
     }
 
     public function generateInvoice(Order $order): JsonResponse
@@ -171,47 +182,49 @@ class OrderController extends Controller
         return view('admin.orders.invoice', compact('order'));
     }
 
-    public function generateLabel(Order $order): JsonResponse
+    public function generateLabel(Order $order, ManualShippingService $shipping): JsonResponse
     {
         $shipment = $order->shipment ?? $order->shipmentRecord;
 
         if (! $shipment) {
-            return response()->json(['success' => false, 'message' => 'Create shipment first.'], 422);
+            return response()->json(['success' => false, 'message' => 'Save shipment details with a tracking ID first.'], 422);
         }
 
         $waybill = trim((string) ($shipment->waybill ?: $shipment->tracking_number));
         if ($waybill === '') {
             return response()->json([
                 'success' => false,
-                'message' => 'AWB / waybill is missing. Create the Delhivery shipment again, then print the label.',
+                'message' => 'Tracking ID is missing. Save shipment details first.',
             ], 422);
         }
 
         try {
-            GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
+            $shipping->generateLabel($shipment);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
+        ActivityLogger::log('updated', 'orders', $order, "Shipping label generated for {$order->order_number}");
+
         return response()->json(['success' => true, 'message' => 'Label generated.', 'reload' => true]);
     }
 
-    public function printLabel(Order $order, DelhiveryService $delhivery)
+    public function printLabel(Order $order, ManualShippingService $shipping)
     {
         $shipment = $order->shipment ?? $order->shipmentRecord;
 
         if (! $shipment) {
-            abort(404, 'No shipment found. Create shipment first.');
+            abort(404, 'No shipment found. Save shipment details first.');
         }
 
         $waybill = trim((string) ($shipment->waybill ?: $shipment->tracking_number));
         if ($waybill === '') {
-            abort(422, 'AWB / waybill is missing. Create the Delhivery shipment again, then print the label.');
+            abort(422, 'Tracking ID is missing. Save shipment details first.');
         }
 
         try {
             if (! $shipment->shipping_label || ! Storage::disk('public')->exists($shipment->shipping_label)) {
-                GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
+                $shipping->generateLabel($shipment);
                 $shipment->refresh();
             }
         } catch (\Throwable $e) {
@@ -224,77 +237,13 @@ class OrderController extends Controller
             abort(404, 'Label not ready yet. Try again in a moment.');
         }
 
-        // Old failed runs may have saved Delhivery JSON error as a "pdf"
         $contents = Storage::disk('public')->get($path);
-        if (str_starts_with(ltrim($contents), '{') || str_contains($contents, 'wbns key missing')) {
-            Storage::disk('public')->delete($path);
-            $shipment->update(['shipping_label' => null]);
-
-            try {
-                GenerateLabelJob::dispatchSync($shipment->id, auth()->id());
-                $shipment->refresh();
-                $path = $shipment->shipping_label;
-            } catch (\Throwable $e) {
-                abort(422, $e->getMessage());
-            }
-
-            if (! $path || ! Storage::disk('public')->exists($path)) {
-                abort(422, 'Could not regenerate shipping label.');
-            }
-
-            $contents = Storage::disk('public')->get($path);
-        }
 
         if (str_ends_with($path, '.html')) {
             return response($contents)->header('Content-Type', 'text/html');
         }
 
         return response()->file(Storage::disk('public')->path($path));
-    }
-
-    public function schedulePickup(Order $order): JsonResponse
-    {
-        $shipment = $order->shipment ?? $order->shipmentRecord;
-
-        if (! $shipment) {
-            return response()->json(['success' => false, 'message' => 'Create shipment first.'], 422);
-        }
-
-        SchedulePickupJob::dispatchSync($shipment->id, auth()->id());
-
-        return response()->json(['success' => true, 'message' => 'Pickup scheduled.', 'reload' => true]);
-    }
-
-    public function trackShipment(Order $order): JsonResponse
-    {
-        $shipment = $order->shipment ?? $order->shipmentRecord;
-
-        if (! $shipment) {
-            return response()->json(['success' => false, 'message' => 'No shipment found.'], 404);
-        }
-
-        TrackShipmentJob::dispatchSync($shipment->id);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Tracking updated.',
-            'reload' => true,
-            'tracking_url' => $shipment->tracking_url,
-            'waybill' => $shipment->waybill,
-        ]);
-    }
-
-    public function cancelShipment(Order $order): JsonResponse
-    {
-        $shipment = $order->shipment ?? $order->shipmentRecord;
-
-        if (! $shipment) {
-            return response()->json(['success' => false, 'message' => 'No shipment found.'], 404);
-        }
-
-        CancelShipmentJob::dispatchSync($shipment->id, $order->id, auth()->id());
-
-        return response()->json(['success' => true, 'message' => 'Shipment cancelled.', 'reload' => true]);
     }
 
     public function cancel(Order $order, OrderService $orders): JsonResponse
@@ -313,14 +262,9 @@ class OrderController extends Controller
         return response()->json(['success' => true, 'message' => 'Refund processed.']);
     }
 
-    public function returnOrder(Order $order, OrderService $orders, DelhiveryService $delhivery): JsonResponse
+    public function returnOrder(Order $order, OrderService $orders): JsonResponse
     {
-        $orders->updateStatus($order, 'returned', 'Return Initiated', 'Reverse pickup to be scheduled', 'admin');
-        $delhivery->handleWebhook([
-            'waybill' => $order->shipmentRecord?->waybill,
-            'status' => 'returned',
-            'remarks' => 'Return requested by admin',
-        ]);
+        $orders->updateStatus($order, 'returned', 'Return Initiated', 'Return marked manually', 'admin');
         ActivityLogger::log('updated', 'orders', $order, "Return initiated for {$order->order_number}");
 
         return response()->json(['success' => true, 'message' => 'Return initiated.']);
