@@ -5,6 +5,21 @@
 @section('page-subtitle', 'Banner click redirects to selected category')
 
 @section('content')
+@if($errors->any())
+<div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+    <p class="text-sm font-semibold text-red-800 mb-2">Please fix the following:</p>
+    <ul class="list-disc list-inside space-y-1">
+        @foreach($errors->all() as $error)
+        <li class="text-sm text-red-700">{{ $error }}</li>
+        @endforeach
+    </ul>
+</div>
+@endif
+
+@if(session('success'))
+<div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">{{ session('success') }}</div>
+@endif
+
 <form action="{{ $isEdit ? route('admin.banners.update', $banner) : route('admin.banners.store') }}" method="POST" enctype="multipart/form-data" class="max-w-3xl">
     @csrf
     @if($isEdit) @method('PUT') @endif
@@ -30,6 +45,7 @@
                     <option value="{{ $cat->id }}" @selected(old('category_id', $banner->category_id) == $cat->id)>{{ $cat->name }}</option>
                     @endforeach
                 </select>
+                @error('category_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
             </div>
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1">Button Text</label>
@@ -40,12 +56,14 @@
         <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1">Custom Link URL <span class="text-slate-400 font-normal">(optional, if no category)</span></label>
             <input type="url" name="link_url" value="{{ old('link_url', $banner->link_url) }}" placeholder="https://..." class="w-full rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
+            @error('link_url')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
         </div>
 
         <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1">Image URL {{ $isEdit ? '' : '*' }}</label>
             <p class="text-xs text-slate-500 mb-2">Recommended size: <strong>{{ \App\Models\Banner::recommendedSizeLabel() }}</strong> (landscape, {{ config('banners.aspect_ratio') }}). Min {{ config('banners.min_width') }} × {{ config('banners.min_height') }} px.</p>
             <input type="text" name="image" value="{{ old('image', $isEdit ? $banner->image : '') }}" placeholder="https://... or leave blank if uploading file" class="w-full rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
+            @error('image')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
             @if($isEdit && $banner->image)
             <img src="{{ $banner->imageUrl() }}" alt="" class="mt-2 w-full max-w-md h-32 object-cover rounded-xl border">
             <p class="text-xs text-slate-500 mt-1">Current size: {{ $banner->imageDimensionsLabel() }} @if($banner->imageDimensionsLabel() !== '—' && ! $banner->matchesRecommendedSize())<span class="text-amber-600">— below recommended minimum</span>@endif</p>
@@ -54,7 +72,8 @@
 
         <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1">Or upload image</label>
-            <input type="file" name="image_file" accept="image/jpeg,image/png,image/webp" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700">
+            <input type="file" name="image_file" accept="image/jpeg,image/png,image/webp,image/gif" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700">
+            @error('image_file')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
             <p class="text-xs text-slate-500 mt-1">Use {{ \App\Models\Banner::recommendedSizeLabel() }} for best results on the homepage slider.</p>
         </div>
 

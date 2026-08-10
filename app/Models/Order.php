@@ -68,4 +68,23 @@ class Order extends Model
     {
         return (float) ($this->grand_total ?? $this->total);
     }
+
+    public function scopeRevenueEligible($query)
+    {
+        return $query
+            ->where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded']);
+    }
+
+    public function scopePendingOrders($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    public function scopeAwaitingFulfillment($query)
+    {
+        return $query->whereNotIn('status', [
+            'delivered', 'completed', 'cancelled', 'refunded', 'returned',
+        ]);
+    }
 }

@@ -4,6 +4,10 @@
 @section('page-subtitle', 'Manage full-width slider banners linked to categories')
 
 @section('content')
+@if(session('success'))
+<div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">{{ session('success') }}</div>
+@endif
+
 <div class="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4">
     <div class="flex flex-wrap items-start gap-4">
         <div class="shrink-0 w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">

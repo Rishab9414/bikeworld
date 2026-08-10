@@ -23,7 +23,7 @@
         </div>
         <p class="text-xs text-emerald-600 font-medium mt-3 flex items-center gap-1">
             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd"/></svg>
-            All time earnings
+            All time · paid orders only
         </p>
     </div>
     @endif
@@ -41,7 +41,7 @@
                 </svg>
             </div>
         </div>
-        <p class="text-xs text-indigo-600 font-medium mt-3">{{ $stats['pending_orders'] }} pending</p>
+        <p class="text-xs text-indigo-600 font-medium mt-3">{{ $stats['pending_orders'] }} open · {{ $stats['status_pending_orders'] }} status pending</p>
     </div>
     @endif
 
@@ -83,7 +83,7 @@
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pending</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Open Orders</p>
                 <p class="text-2xl font-bold text-slate-900 mt-2">{{ number_format($stats['pending_orders']) }}</p>
             </div>
             <div class="w-11 h-11 bg-amber-100 rounded-xl flex items-center justify-center">
@@ -92,7 +92,7 @@
                 </svg>
             </div>
         </div>
-        <p class="text-xs text-amber-600 font-medium mt-3">Needs attention</p>
+        <p class="text-xs text-amber-600 font-medium mt-3">{{ $stats['status_pending_orders'] }} awaiting confirmation</p>
     </div>
     @endif
 
