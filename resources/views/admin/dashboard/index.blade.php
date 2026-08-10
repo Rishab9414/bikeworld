@@ -32,7 +32,7 @@
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Orders</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Orders (Paid)</p>
                 <p class="text-2xl font-bold text-slate-900 mt-2">{{ number_format($stats['total_orders']) }}</p>
             </div>
             <div class="w-11 h-11 bg-indigo-100 rounded-xl flex items-center justify-center">
@@ -41,7 +41,7 @@
                 </svg>
             </div>
         </div>
-        <p class="text-xs text-indigo-600 font-medium mt-3">{{ $stats['pending_orders'] }} open · {{ $stats['status_pending_orders'] }} status pending</p>
+        <p class="text-xs text-indigo-600 font-medium mt-3">Paid orders only · {{ $stats['pending_orders'] }} open · {{ $stats['status_pending_orders'] }} status pending</p>
     </div>
     @endif
 
@@ -83,7 +83,7 @@
     <div class="admin-stat-card">
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Open Orders</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Open Orders (Paid)</p>
                 <p class="text-2xl font-bold text-slate-900 mt-2">{{ number_format($stats['pending_orders']) }}</p>
             </div>
             <div class="w-11 h-11 bg-amber-100 rounded-xl flex items-center justify-center">
@@ -92,7 +92,7 @@
                 </svg>
             </div>
         </div>
-        <p class="text-xs text-amber-600 font-medium mt-3">{{ $stats['status_pending_orders'] }} awaiting confirmation</p>
+        <p class="text-xs text-amber-600 font-medium mt-3">Paid · {{ $stats['status_pending_orders'] }} awaiting confirmation</p>
     </div>
     @endif
 
@@ -122,7 +122,7 @@
         <div class="flex items-center justify-between mb-6">
             <div>
                 <h3 class="text-lg font-bold text-slate-900">Revenue Overview</h3>
-                <p class="text-sm text-slate-500">Last 6 months performance</p>
+                <p class="text-sm text-slate-500">Last 6 months · paid orders only</p>
             </div>
         </div>
         @php $maxRevenue = $monthlyRevenue->max() ?: 1; @endphp
@@ -154,7 +154,7 @@
     <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         @if($u->hasPermissionGroup('orders'))
         <h3 class="text-lg font-bold text-slate-900 mb-1">Order Status</h3>
-        <p class="text-sm text-slate-500 mb-6">Breakdown by status</p>
+        <p class="text-sm text-slate-500 mb-6">Paid orders · breakdown by status</p>
         @php
             $statusColors = [
                 'pending' => ['bg' => 'bg-amber-500', 'light' => 'bg-amber-100', 'text' => 'text-amber-700'],
@@ -209,7 +209,7 @@
     <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
         <div>
             <h3 class="text-lg font-bold text-slate-900">Recent Orders</h3>
-            <p class="text-sm text-slate-500">Latest transactions from your store</p>
+            <p class="text-sm text-slate-500">Latest paid orders from your store</p>
         </div>
     </div>
 

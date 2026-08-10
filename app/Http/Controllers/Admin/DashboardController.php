@@ -13,26 +13,31 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        $paidOrders = Order::query()->paid();
         $revenueExpression = 'COALESCE(grand_total, total, 0)';
 
         $stats = [
             'total_revenue' => (float) Order::query()
                 ->revenueEligible()
                 ->sum(DB::raw($revenueExpression)),
-            'total_orders' => Order::count(),
+            'total_orders' => (clone $paidOrders)->count(),
             'total_products' => Product::count(),
             'total_customers' => User::where('is_admin', false)->count(),
-            'pending_orders' => Order::awaitingFulfillment()->count(),
-            'status_pending_orders' => Order::pendingOrders()->count(),
+            'pending_orders' => (clone $paidOrders)->awaitingFulfillment()->count(),
+            'status_pending_orders' => (clone $paidOrders)->pendingOrders()->count(),
             'low_stock' => Product::where('stock', '<', 10)->count(),
         ];
 
-        $recentOrders = Order::with('user')
+        $recentOrders = Order::query()
+            ->paid()
+            ->with('user')
             ->latest()
             ->take(8)
             ->get();
 
-        $ordersByStatus = Order::selectRaw('status, count(*) as count')
+        $ordersByStatus = Order::query()
+            ->paid()
+            ->selectRaw('status, count(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');
 
