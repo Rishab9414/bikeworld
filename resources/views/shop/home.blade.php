@@ -107,7 +107,8 @@
     <x-shop-by-bike :brands="$vehicleBrands ?? collect()" />
 @endif
 
-{{-- CATEGORIES --}}
+{{-- CATEGORIES (only categories with uploaded image) --}}
+@if($categories->isNotEmpty())
 <section class="py-16 lg:py-24 bg-brand-gray" x-data="{ shown: false }" x-init="setTimeout(() => shown = true, 150)">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-12 transition-all duration-700" :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'">
@@ -116,14 +117,11 @@
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
             @foreach($categories as $category)
-            @php
-                $catImage = $category->imageUrl()
-                    ?? 'https://images.unsplash.com/photo-1558981403-c5f9899a28f0?w=800&q=80';
-            @endphp
+            @continue(!$category->imageUrl())
             <a href="{{ route('products.index', ['category' => $category->slug]) }}"
                class="group relative rounded-2xl overflow-hidden aspect-[4/5] bg-zinc-100 shadow-lg hover:shadow-xl hover:shadow-brand-red/10 transition-all duration-500 hover:-translate-y-2"
                style="transition-delay: {{ $loop->index * 50 }}ms">
-                <img src="{{ $catImage }}" alt="{{ $category->name }}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                <img src="{{ $category->imageUrl() }}" alt="{{ $category->name }}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
                 <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/50 to-transparent pointer-events-none"></div>
                 <div class="absolute bottom-0 left-0 right-0 p-4 lg:p-5">
                     <h3 class="text-white font-bold text-sm lg:text-base">{{ $category->name }}</h3>
@@ -135,6 +133,7 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- VIDEO REELS --}}
 @if($homeReelsEnabled ?? false)

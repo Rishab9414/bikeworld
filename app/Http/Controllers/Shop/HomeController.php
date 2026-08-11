@@ -40,18 +40,20 @@ class HomeController extends Controller
 
         $rootCategory = Category::where('slug', 'bike-accessories')->first();
 
-        $categories = Category::where('parent_id', $rootCategory?->id)
+        $categoryQuery = Category::query()
             ->where('is_active', true)
+            ->whereNotNull('image')
+            ->where('image', '!=', '')
             ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
-            ->orderBy('display_order')
+            ->orderBy('display_order');
+
+        $categories = (clone $categoryQuery)
+            ->where('parent_id', $rootCategory?->id)
             ->take(8)
             ->get();
 
         if ($categories->isEmpty()) {
-            $categories = Category::where('is_active', true)
-                ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
-                ->take(8)
-                ->get();
+            $categories = $categoryQuery->take(8)->get();
         }
 
         $brands = Brand::where('status', 'active')->orderBy('name')->take(9)->get();
