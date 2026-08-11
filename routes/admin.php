@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\BlogController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\HomeReelController;
+use App\Http\Controllers\Admin\HomeThemeController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\CouponController;
@@ -133,6 +134,16 @@ Route::middleware('admin.auth')->group(function () {
         Route::get('/{promoPopup}/edit', [PromoPopupController::class, 'edit'])->name('edit');
         Route::put('/{promoPopup}', [PromoPopupController::class, 'update'])->name('update');
         Route::delete('/{promoPopup}', [PromoPopupController::class, 'destroy'])->name('destroy');
+    });
+
+    // Homepage Themes (festival / seasonal)
+    Route::middleware('permission:marketing')->prefix('home-themes')->name('home-themes.')->group(function () {
+        Route::get('/', [HomeThemeController::class, 'index'])->name('index');
+        Route::get('/create', [HomeThemeController::class, 'create'])->name('create');
+        Route::post('/', [HomeThemeController::class, 'store'])->name('store');
+        Route::get('/{homeTheme}/edit', [HomeThemeController::class, 'edit'])->name('edit');
+        Route::put('/{homeTheme}', [HomeThemeController::class, 'update'])->name('update');
+        Route::delete('/{homeTheme}', [HomeThemeController::class, 'destroy'])->name('destroy');
     });
 
     // Homepage Reels

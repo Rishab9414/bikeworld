@@ -30,7 +30,7 @@
                 </div>
 
                 {{-- Navigation --}}
-                <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto" x-data="{ mastersOpen: {{ request()->routeIs('admin.masters.*') ? 'true' : 'false' }}, usersOpen: {{ request()->routeIs('admin.users.*') ? 'true' : 'false' }}, contentOpen: {{ request()->routeIs('admin.banners.*') || request()->routeIs('admin.promo-popups.*') || request()->routeIs('admin.home-reels.*') || request()->routeIs('admin.coupons.*') || request()->routeIs('admin.announcements.*') || request()->routeIs('admin.blog.*') ? 'true' : 'false' }} }">
+                <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto" x-data="{ mastersOpen: {{ request()->routeIs('admin.masters.*') ? 'true' : 'false' }}, usersOpen: {{ request()->routeIs('admin.users.*') ? 'true' : 'false' }}, contentOpen: {{ request()->routeIs('admin.banners.*') || request()->routeIs('admin.promo-popups.*') || request()->routeIs('admin.home-themes.*') || request()->routeIs('admin.home-reels.*') || request()->routeIs('admin.coupons.*') || request()->routeIs('admin.announcements.*') || request()->routeIs('admin.blog.*') ? 'true' : 'false' }} }">
                     <p class="text-xs font-semibold text-slate-600 uppercase tracking-wider px-4 mb-2">Main</p>
 
                     <a href="{{ route('admin.dashboard') }}" class="admin-sidebar-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
@@ -46,7 +46,7 @@
                     @endif
 
                     @if(auth()->user()->hasPermissionGroup('marketing'))
-                    <button @click="contentOpen = !contentOpen" class="admin-sidebar-link w-full justify-between {{ request()->routeIs('admin.banners.*') || request()->routeIs('admin.promo-popups.*') || request()->routeIs('admin.home-reels.*') || request()->routeIs('admin.coupons.*') || request()->routeIs('admin.announcements.*') || request()->routeIs('admin.blog.*') ? 'text-white' : '' }}">
+                    <button @click="contentOpen = !contentOpen" class="admin-sidebar-link w-full justify-between {{ request()->routeIs('admin.banners.*') || request()->routeIs('admin.promo-popups.*') || request()->routeIs('admin.home-themes.*') || request()->routeIs('admin.home-reels.*') || request()->routeIs('admin.coupons.*') || request()->routeIs('admin.announcements.*') || request()->routeIs('admin.blog.*') ? 'text-white' : '' }}">
                         <span class="flex items-center gap-3 whitespace-nowrap">
                             <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                             Marketing
@@ -56,6 +56,7 @@
                     <div x-show="contentOpen" x-cloak class="ml-4 space-y-0.5 border-l border-slate-800 pl-3">
                         @foreach([
                             ['route' => 'admin.banners.index', 'pattern' => 'admin.banners.*', 'label' => 'Banners'],
+                            ['route' => 'admin.home-themes.index', 'pattern' => 'admin.home-themes.*', 'label' => 'Home Themes'],
                             ['route' => 'admin.promo-popups.index', 'pattern' => 'admin.promo-popups.*', 'label' => 'Offer Popup'],
                             ['route' => 'admin.home-reels.index', 'pattern' => 'admin.home-reels.*', 'label' => 'Home Reels'],
                             ['route' => 'admin.coupons.index', 'pattern' => 'admin.coupons.*', 'label' => 'Coupons'],

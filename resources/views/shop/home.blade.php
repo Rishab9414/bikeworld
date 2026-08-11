@@ -37,12 +37,17 @@
     >
         <img src="{{ $banner->imageUrl() }}" alt="{{ $banner->title }}" class="absolute inset-0 w-full h-full object-cover">
         {{-- Light scrim only behind text so the banner image stays bright --}}
-        <div class="absolute inset-0 bg-gradient-to-r from-brand-black/45 via-brand-black/15 to-transparent"></div>
+        <div class="absolute inset-0 bg-gradient-to-r {{ ($homeTheme ?? null)?->heroOverlayClasses() ?? 'from-brand-black/45 via-brand-black/15 to-transparent' }}"></div>
         <div class="absolute inset-0 bg-gradient-to-t from-brand-black/35 via-transparent to-transparent"></div>
 
         <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
             <div class="max-w-2xl animate-fade-in-up" :key="current">
-                @if($banner->category)
+                @if(($homeTheme ?? null)?->hero_badge_text)
+                <span class="inline-flex items-center gap-2 bg-brand-red/20 border border-brand-red/50 text-brand-red text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full mb-5">
+                    <span class="w-2 h-2 bg-brand-red rounded-full animate-pulse"></span>
+                    {{ $homeTheme->hero_badge_text }}
+                </span>
+                @elseif($banner->category)
                 <span class="inline-flex items-center gap-2 bg-brand-red/20 border border-brand-red/50 text-brand-red text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full mb-5">
                     <span class="w-2 h-2 bg-brand-red rounded-full animate-pulse"></span>
                     {{ $banner->category->name }}

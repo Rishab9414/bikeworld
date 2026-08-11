@@ -65,4 +65,37 @@
     .animate-slide-in {
         animation: slideIn 0.7s ease-out forwards;
     }
+    @keyframes themeConfettiFall {
+        0% { transform: translateY(-12vh) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(112vh) rotate(720deg); opacity: 0.35; }
+    }
+    @keyframes themeSparkle {
+        0%, 100% { opacity: 0.2; }
+        50% { opacity: 1; }
+    }
+    @keyframes themeSparkleFall {
+        0% { transform: translateY(-12vh) scale(0.8) rotate(0deg); }
+        100% { transform: translateY(112vh) scale(1.1) rotate(180deg); }
+    }
+    @keyframes themeSnowFall {
+        0% { transform: translateY(-12vh) translateX(0) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(112vh) translateX(30px) rotate(360deg); opacity: 0.5; }
+    }
+    .theme-confetti {
+        top: -8vh;
+        opacity: 0.9;
+        animation: themeConfettiFall 8s linear infinite;
+    }
+    .theme-sparkle {
+        top: -8vh;
+        color: var(--brand-red, #E31E24);
+        text-shadow: 0 0 8px rgba(255, 255, 255, 0.9), 0 0 16px var(--brand-red, #E31E24);
+        animation: themeSparkleFall 9s linear infinite, themeSparkle 2.2s ease-in-out infinite;
+    }
+    .theme-snow {
+        top: -8vh;
+        color: #fff;
+        text-shadow: 0 0 6px rgba(147, 197, 253, 0.9), 0 1px 2px rgba(0, 0, 0, 0.35);
+        animation: themeSnowFall 10s linear infinite;
+    }
 }

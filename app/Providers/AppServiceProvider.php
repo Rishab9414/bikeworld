@@ -8,6 +8,7 @@ use App\Mail\Transport\BrevoApiTransport;
 use App\Models\Announcement;
 use App\Models\BikeModel;
 use App\Models\Category;
+use App\Models\HomeTheme;
 use App\Models\VehicleBrand;
 use App\Services\BrevoEmailService;
 use App\Services\CartService;
@@ -99,6 +100,7 @@ class AppServiceProvider extends ServiceProvider
                 ->get();
 
             $view->with('menuCategories', $menuCategories);
+            $view->with('homeTheme', HomeTheme::current());
         });
 
         View::composer(['components.product-card', 'components.wishlist-button'], function ($view) {

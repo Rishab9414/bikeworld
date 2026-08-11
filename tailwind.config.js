@@ -16,9 +16,9 @@ export default {
             },
             colors: {
                 brand: {
-                    red: '#E31E24',
-                    black: '#0A0A0A',
-                    dark: '#141414',
+                    red: 'var(--brand-red, #E31E24)',
+                    black: 'var(--brand-black, #0A0A0A)',
+                    dark: 'var(--brand-dark, #141414)',
                     gray: '#F4F4F5',
                 },
             },

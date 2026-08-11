@@ -15,9 +15,33 @@
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800,900&display=swap" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
-    <style>[x-cloak]{display:none!important}</style>
+    <style>
+        :root {
+            --brand-red: #E31E24;
+            --brand-black: #0A0A0A;
+            --brand-dark: #141414;
+            --theme-ticker-bg: #E31E24;
+        }
+        @if(!empty($homeTheme))
+        :root {
+            {!! $homeTheme->cssVariablesString() !!};
+        }
+        @endif
+        .text-brand-red { color: var(--brand-red) !important; }
+        .bg-brand-red { background-color: var(--brand-red) !important; }
+        .border-brand-red { border-color: var(--brand-red) !important; }
+        .text-brand-black { color: var(--brand-black) !important; }
+        .bg-brand-black { background-color: var(--brand-black) !important; }
+        .bg-brand-dark { background-color: var(--brand-dark) !important; }
+        .hover\:text-brand-red:hover { color: var(--brand-red) !important; }
+        .hover\:bg-brand-red:hover { background-color: var(--brand-red) !important; }
+        .hover\:border-brand-red:hover { border-color: var(--brand-red) !important; }
+        .focus\:border-brand-red:focus { border-color: var(--brand-red) !important; }
+        .shadow-brand-red\/40 { --tw-shadow-color: color-mix(in srgb, var(--brand-red) 40%, transparent); }
+        [x-cloak]{display:none!important}
+    </style>
 </head>
-<body class="font-sans antialiased bg-white text-brand-black overflow-x-hidden w-full" x-data="{ mobileOpen: false, wishlistCount: {{ $wishlistCount ?? 0 }} }" @wishlist-updated.window="wishlistCount = $event.detail.count">
+<body class="font-sans antialiased bg-white text-brand-black overflow-x-hidden w-full{{ !empty($homeTheme) ? ' home-theme-active' : '' }}" @if(!empty($homeTheme)) data-home-theme="{{ $homeTheme->preset }}" @endif x-data="{ mobileOpen: false, wishlistCount: {{ $wishlistCount ?? 0 }} }" @wishlist-updated.window="wishlistCount = $event.detail.count">
     {{-- Top bar (database-managed) --}}
     @if(isset($topBarAnnouncements) && $topBarAnnouncements->isNotEmpty())
     <div class="bg-brand-black text-white text-xs py-2 hidden sm:block">
@@ -160,6 +184,11 @@
     <main class="overflow-x-hidden w-full max-w-full">@yield('content')</main>
 
     <x-shop-footer />
+
+    @if(request()->routeIs('home') && !empty($homeTheme))
+        <x-home-theme-decoration :home-theme="$homeTheme" />
+    @endif
+
     @stack('scripts')
 </body>
 </html>
