@@ -56,7 +56,7 @@
         const params = new URLSearchParams({ page: String(currentPage) });
         if (searchInput?.value.trim()) params.set('search', searchInput.value.trim());
         if (statusEl?.value) params.set('status', statusEl.value);
-        if (payEl?.value) params.set('payment_status', payEl.value);
+        params.set('payment_status', payEl?.value ?? '');
         if (dateFromEl?.value) params.set('date_from', dateFromEl.value);
         if (dateToEl?.value) params.set('date_to', dateToEl.value);
 
@@ -100,7 +100,7 @@
     document.getElementById('apply-filters')?.addEventListener('click', reloadFromStart);
     document.getElementById('reset-filters')?.addEventListener('click', () => {
         if (statusEl) statusEl.value = '';
-        if (payEl) payEl.value = 'paid';
+        if (payEl) payEl.value = '';
         if (dateFromEl) dateFromEl.value = '';
         if (dateToEl) dateToEl.value = '';
         if (searchInput) searchInput.value = '';
@@ -131,7 +131,7 @@
         <select id="filter-payment-status" class="admin-input text-sm py-2.5">
             <option value="">All Payments</option>
             <option value="pending">Pending</option>
-            <option value="paid" selected>Paid</option>
+            <option value="paid">Paid</option>
             <option value="refunded">Refunded</option>
         </select>
         <input type="date" id="filter-date-from" class="admin-input text-sm py-2.5" placeholder="From date">

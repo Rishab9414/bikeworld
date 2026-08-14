@@ -57,12 +57,8 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
-        if ($request->has('payment_status')) {
-            if ($request->filled('payment_status')) {
-                $query->where('payment_status', $request->payment_status);
-            }
-        } else {
-            $query->where('payment_status', 'paid');
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->payment_status);
         }
 
         if ($request->filled('date_from')) {
