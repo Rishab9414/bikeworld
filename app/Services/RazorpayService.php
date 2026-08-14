@@ -80,7 +80,13 @@ class RazorpayService
         }
 
         if ($this->usesMockMode() || str_starts_with($razorpayOrderId, 'order_mock_')) {
-            return $this->markOrderPaid($order, $razorpayPaymentId ?: 'pay_mock_'.Str::lower(Str::random(14)));
+            $this->completePayment(
+                $order,
+                $razorpayPaymentId ?: 'pay_mock_'.Str::lower(Str::random(14)),
+                'verify'
+            );
+
+            return $order->fresh();
         }
 
         try {
@@ -97,24 +103,178 @@ class RazorpayService
             throw new \RuntimeException('Payment verification failed. Please contact support.');
         }
 
-        return $this->markOrderPaid($order, $razorpayPaymentId);
+        $this->completePayment($order, $razorpayPaymentId, 'verify');
+
+        return $order->fresh();
     }
 
     public function handleWebhook(array $payload): void
     {
         $event = $payload['event'] ?? null;
 
-        if ($event === 'payment.captured') {
-            $payment = $payload['payload']['payment']['entity'] ?? [];
-            $this->handlePaymentCaptured($payment);
+        match ($event) {
+            'payment.captured', 'payment.authorized' => $this->handlePaymentCaptured(
+                $payload['payload']['payment']['entity'] ?? []
+            ),
+            'order.paid' => $this->handleOrderPaid($payload),
+            'payment.failed' => $this->handlePaymentFailed(
+                $payload['payload']['payment']['entity'] ?? []
+            ),
+            default => null,
+        };
+    }
 
-            return;
+    /**
+     * Check Razorpay API and mark the local order paid when payment already succeeded.
+     */
+    public function syncPaymentStatus(Order $order, string $source = 'sync'): bool
+    {
+        if ($order->payment_status === 'paid') {
+            return true;
         }
 
-        if ($event === 'payment.failed') {
-            $payment = $payload['payload']['payment']['entity'] ?? [];
-            $this->handlePaymentFailed($payment);
+        if ($order->payment_method !== 'online' || ! $order->razorpay_order_id) {
+            return false;
         }
+
+        if ($this->usesMockMode() || str_starts_with($order->razorpay_order_id, 'order_mock_')) {
+            return false;
+        }
+
+        try {
+            $razorpayOrder = $this->api()->order->fetch($order->razorpay_order_id);
+            $payments = $this->api()->order->fetch($order->razorpay_order_id)->payments();
+            $items = $payments['items'] ?? [];
+
+            foreach ($items as $payment) {
+                $status = $payment['status'] ?? '';
+                if (! in_array($status, ['captured', 'authorized'], true)) {
+                    continue;
+                }
+
+                return $this->completePayment(
+                    $order,
+                    (string) ($payment['id'] ?? ''),
+                    $source
+                );
+            }
+
+            if (($razorpayOrder['status'] ?? '') === 'paid' && ! empty($items[0]['id'])) {
+                return $this->completePayment($order, (string) $items[0]['id'], $source);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Razorpay payment sync failed', [
+                'order_id' => $order->id,
+                'razorpay_order_id' => $order->razorpay_order_id,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{checked:int,updated:array<int,array<string,mixed>>,still_pending:array<int,array<string,mixed>>,errors:array<int,array<string,mixed>>,skipped:int}
+     */
+    public function syncAllPendingPayments(int $limit = 100, int $days = 60): array
+    {
+        $results = [
+            'checked' => 0,
+            'updated' => [],
+            'still_pending' => [],
+            'errors' => [],
+            'skipped' => 0,
+        ];
+
+        if ($this->usesMockMode()) {
+            return $results;
+        }
+
+        $orders = Order::query()
+            ->where('payment_method', 'online')
+            ->whereIn('payment_status', ['pending', 'failed'])
+            ->whereNotNull('razorpay_order_id')
+            ->where('razorpay_order_id', 'not like', 'order_mock_%')
+            ->where('created_at', '>=', now()->subDays($days))
+            ->latest('id')
+            ->limit($limit)
+            ->get(['id', 'order_number', 'payment_status', 'razorpay_order_id', 'grand_total', 'total', 'created_at', 'paid_at', 'razorpay_payment_id']);
+
+        foreach ($orders as $order) {
+            if ($order->payment_status === 'paid') {
+                $results['skipped']++;
+
+                continue;
+            }
+
+            $results['checked']++;
+
+            try {
+                if ($this->syncPaymentStatus($order, 'cron')) {
+                    $order->refresh();
+                    $results['updated'][] = [
+                        'id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'razorpay_payment_id' => $order->razorpay_payment_id,
+                        'amount' => $order->displayTotal(),
+                        'paid_at' => $order->paid_at?->format('Y-m-d H:i:s'),
+                    ];
+                } else {
+                    $results['still_pending'][] = [
+                        'id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'payment_status' => $order->payment_status,
+                        'razorpay_order_id' => $order->razorpay_order_id,
+                        'amount' => $order->displayTotal(),
+                        'created_at' => $order->created_at?->format('Y-m-d H:i:s'),
+                    ];
+                }
+            } catch (\Throwable $e) {
+                Log::error('Payment cron sync failed for order', [
+                    'order_id' => $order->id,
+                    'message' => $e->getMessage(),
+                ]);
+
+                $results['errors'][] = [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'message' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    public function completePayment(Order $order, string $razorpayPaymentId, string $source = 'razorpay'): bool
+    {
+        if ($order->payment_status === 'paid') {
+            return true;
+        }
+
+        if ($razorpayPaymentId === '') {
+            return false;
+        }
+
+        $this->markOrderPaid($order, $razorpayPaymentId);
+        $fresh = $order->fresh();
+        app(OrderService::class)->logStatus(
+            $fresh,
+            $fresh->status,
+            'Payment Success',
+            match ($source) {
+                'webhook' => 'Payment confirmed via Razorpay webhook',
+                'sync' => 'Payment confirmed via Razorpay sync',
+                'admin' => 'Payment confirmed via admin sync',
+                'cron' => 'Payment confirmed via payment sync cron',
+                'verify' => 'Razorpay payment verified',
+                default => 'Razorpay payment confirmed',
+            },
+            $source === 'verify' ? 'customer' : $source
+        );
+        app(NotificationService::class)->notifyOrderEvent($fresh, 'payment_success');
+
+        return true;
     }
 
     public function checkoutOptions(Order $order, array $prefill = []): array
@@ -165,13 +325,39 @@ class RazorpayService
 
         $order = Order::where('razorpay_order_id', $razorpayOrderId)->first();
 
-        if (! $order || $order->payment_status === 'paid') {
+        if (! $order) {
             return;
         }
 
-        $this->markOrderPaid($order, $razorpayPaymentId);
-        app(OrderService::class)->logStatus($order, 'pending', 'Payment Success', 'Payment captured via Razorpay webhook', 'razorpay');
-        app(NotificationService::class)->notifyOrderEvent($order->fresh(), 'payment_success');
+        $this->completePayment($order, $razorpayPaymentId, 'webhook');
+    }
+
+    private function handleOrderPaid(array $payload): void
+    {
+        $orderEntity = $payload['payload']['order']['entity'] ?? [];
+        $paymentEntity = $payload['payload']['payment']['entity'] ?? [];
+        $razorpayOrderId = $orderEntity['id'] ?? null;
+        $razorpayPaymentId = $paymentEntity['id'] ?? null;
+
+        if (! $razorpayOrderId) {
+            return;
+        }
+
+        $order = Order::where('razorpay_order_id', $razorpayOrderId)->first();
+
+        if (! $order) {
+            return;
+        }
+
+        if (! $razorpayPaymentId && ! empty($orderEntity['id'])) {
+            $this->syncPaymentStatus($order, 'webhook');
+
+            return;
+        }
+
+        if ($razorpayPaymentId) {
+            $this->completePayment($order, $razorpayPaymentId, 'webhook');
+        }
     }
 
     private function handlePaymentFailed(array $payment): void

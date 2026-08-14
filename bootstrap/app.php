@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->validateCsrfTokens(except: [
             'webhooks/*',
+            'cron/*',
         ]);
 
         // Keep admin + webhooks reachable while the storefront is in maintenance.
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin',
             'admin/*',
             'webhooks/*',
+            'cron/*',
             'up',
             'bikeworld-admin-bypass',
         ]);

@@ -37,6 +37,10 @@ class WebhookController extends Controller
 
                 return response()->json(['success' => false], 400);
             }
+        } elseif ($this->shouldVerifyWebhook()) {
+            Log::warning('Razorpay webhook rejected: missing signature or RAZORPAY_WEBHOOK_SECRET');
+
+            return response()->json(['success' => false, 'message' => 'Webhook not configured'], 400);
         }
 
         $data = $request->all();
@@ -45,5 +49,10 @@ class WebhookController extends Controller
         $razorpay->handleWebhook($data);
 
         return response()->json(['success' => true]);
+    }
+
+    private function shouldVerifyWebhook(): bool
+    {
+        return app()->environment('production') && filled(config('razorpay.key_id'));
     }
 }

@@ -6,11 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Services\ProductReviewService;
+use App\Services\RazorpayService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class OrderController extends Controller
 {
-    public function __construct(private ProductReviewService $reviews) {}
+    public function __construct(
+        private ProductReviewService $reviews,
+        private RazorpayService $razorpay,
+    ) {}
 
     public function index()
     {
@@ -22,6 +27,11 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         abort_unless($order->user_id === auth()->id(), 403);
+
+        if ($order->payment_method === 'online' && $order->payment_status !== 'paid') {
+            $this->razorpay->syncPaymentStatus($order, 'sync');
+            $order->refresh();
+        }
 
         $order->load([
             'items.product',
@@ -38,9 +48,19 @@ class OrderController extends Controller
         return view('shop.orders.show', compact('order', 'reviewableItems', 'shipment'));
     }
 
-    public function confirmation(Order $order): View
+    public function confirmation(Order $order): View|RedirectResponse
     {
         abort_unless($order->user_id === auth()->id(), 403);
+
+        if ($order->payment_method === 'online' && $order->payment_status !== 'paid') {
+            if ($this->razorpay->syncPaymentStatus($order, 'sync')) {
+                $order->refresh();
+            } else {
+                return redirect()
+                    ->route('orders.payment', $order)
+                    ->with('error', 'Please complete payment to view order confirmation.');
+            }
+        }
 
         $order->load('items');
 

@@ -132,6 +132,12 @@
             <hr class="my-3">
             <div class="flex justify-between text-sm"><span>Order Status</span><span class="font-semibold capitalize">{{ str_replace('_',' ',$o->status) }}</span></div>
             <div class="flex justify-between text-sm"><span>Payment</span><span class="font-semibold capitalize">{{ $o->payment_status }} ({{ $o->payment_method }})</span></div>
+            @if($o->razorpay_payment_id)
+            <div class="flex justify-between text-sm"><span>Razorpay ID</span><span class="font-mono text-xs text-slate-500">{{ $o->razorpay_payment_id }}</span></div>
+            @endif
+            @if($o->payment_method === 'online' && $o->payment_status !== 'paid')
+            <button data-action="sync-payment" class="action-btn w-full mt-3 px-4 py-2.5 text-sm font-semibold bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100">↻ Sync payment from Razorpay</button>
+            @endif
         </div>
 
         <div class="bg-white rounded-2xl border p-6 mb-4">
@@ -181,6 +187,7 @@ const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 const base = @js(url('/admin/orders/'.$o->id));
 const routes = {
     confirm: { method: 'PATCH', url: `${base}/confirm` },
+    'sync-payment': { method: 'POST', url: `${base}/sync-payment` },
     'generate-invoice': { method: 'POST', url: `${base}/generate-invoice` },
     'generate-label': { method: 'POST', url: `${base}/generate-label` },
     return: { method: 'POST', url: `${base}/return` },

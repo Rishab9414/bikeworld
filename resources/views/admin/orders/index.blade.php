@@ -100,7 +100,7 @@
     document.getElementById('apply-filters')?.addEventListener('click', reloadFromStart);
     document.getElementById('reset-filters')?.addEventListener('click', () => {
         if (statusEl) statusEl.value = '';
-        if (payEl) payEl.value = '';
+        if (payEl) payEl.value = 'paid';
         if (dateFromEl) dateFromEl.value = '';
         if (dateToEl) dateToEl.value = '';
         if (searchInput) searchInput.value = '';
@@ -113,6 +113,12 @@
 @endpush
 
 @section('content')
+<div class="mb-4 flex justify-end">
+    <a href="{{ route('admin.orders.sync-payments') }}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Sync Razorpay Payments
+    </a>
+</div>
 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm mb-6">
     <div class="p-5 border-b border-slate-100 grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
         <input type="text" id="master-search" placeholder="Order #, customer..." class="admin-input text-sm py-2.5">
@@ -123,9 +129,9 @@
             @endforeach
         </select>
         <select id="filter-payment-status" class="admin-input text-sm py-2.5">
-            <option value="">Payment Status</option>
+            <option value="">All Payments</option>
             <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
+            <option value="paid" selected>Paid</option>
             <option value="refunded">Refunded</option>
         </select>
         <input type="date" id="filter-date-from" class="admin-input text-sm py-2.5" placeholder="From date">

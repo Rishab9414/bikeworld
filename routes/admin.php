@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\OrderController;
+use App\Http\Controllers\Admin\PaymentSyncController;
 use App\Http\Controllers\Admin\LoginHistoryController;
 use App\Http\Controllers\Admin\Masters\BikeModelController;
 use App\Http\Controllers\Admin\Masters\BrandController;
@@ -84,6 +85,7 @@ Route::middleware('admin.auth')->group(function () {
     // Orders
     Route::middleware('permission:orders')->prefix('orders')->name('orders.')->group(function () {
         Route::get('/', [OrderController::class, 'index'])->name('index');
+        Route::get('/sync-payments', [PaymentSyncController::class, 'index'])->name('sync-payments');
         Route::get('/data', [OrderController::class, 'data'])->name('data');
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         Route::patch('/{order}/confirm', [OrderController::class, 'confirm'])->name('confirm');
@@ -93,6 +95,7 @@ Route::middleware('admin.auth')->group(function () {
         Route::post('/{order}/generate-label', [OrderController::class, 'generateLabel'])->name('generate-label');
         Route::get('/{order}/invoice', [OrderController::class, 'printInvoice'])->name('invoice');
         Route::get('/{order}/label', [OrderController::class, 'printLabel'])->name('label');
+        Route::post('/{order}/sync-payment', [OrderController::class, 'syncPayment'])->name('sync-payment');
         Route::post('/{order}/cancel', [OrderController::class, 'cancel'])->name('cancel');
         Route::post('/{order}/refund', [OrderController::class, 'refund'])->name('refund');
         Route::post('/{order}/return', [OrderController::class, 'returnOrder'])->name('return');

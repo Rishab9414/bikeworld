@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\ManualShippingService;
 use App\Services\OrderService;
+use App\Services\RazorpayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -56,8 +57,12 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
-        if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
+        if ($request->has('payment_status')) {
+            if ($request->filled('payment_status')) {
+                $query->where('payment_status', $request->payment_status);
+            }
+        } else {
+            $query->where('payment_status', 'paid');
         }
 
         if ($request->filled('date_from')) {
@@ -110,6 +115,32 @@ class OrderController extends Controller
         ActivityLogger::log('updated', 'orders', $order, "Order {$order->order_number} confirmed");
 
         return response()->json(['success' => true, 'message' => 'Order confirmed and stock reserved.', 'status' => $order->fresh()->status]);
+    }
+
+    public function syncPayment(Order $order, RazorpayService $razorpay): JsonResponse
+    {
+        if ($order->payment_status === 'paid') {
+            return response()->json(['success' => true, 'message' => 'Order is already marked as paid.', 'reload' => true]);
+        }
+
+        if ($order->payment_method !== 'online') {
+            return response()->json(['success' => false, 'message' => 'Payment sync is only for online Razorpay orders.'], 422);
+        }
+
+        if (! $order->razorpay_order_id) {
+            return response()->json(['success' => false, 'message' => 'No Razorpay order ID on this order.'], 422);
+        }
+
+        if ($razorpay->syncPaymentStatus($order, 'admin')) {
+            ActivityLogger::log('updated', 'orders', $order, "Payment synced for {$order->order_number}");
+
+            return response()->json(['success' => true, 'message' => 'Payment confirmed from Razorpay.', 'reload' => true]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'No successful payment found on Razorpay yet. Ask customer to pay or check Razorpay dashboard.',
+        ], 422);
     }
 
     public function updateStatus(Request $request, Order $order, OrderService $orders): JsonResponse

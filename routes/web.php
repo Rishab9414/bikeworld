@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\Route;
 Route::post('/webhooks/delhivery', [WebhookController::class, 'delhivery'])->name('webhooks.delhivery');
 Route::post('/webhooks/razorpay', [WebhookController::class, 'razorpay'])->name('webhooks.razorpay');
 
+Route::get('/cron/sync-payments', [\App\Http\Controllers\Cron\PaymentSyncController::class, 'run'])->name('cron.sync-payments');
+
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 
 Route::get('/', [HomeController::class, 'index'])->name('home');

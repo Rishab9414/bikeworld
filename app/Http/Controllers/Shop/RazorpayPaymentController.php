@@ -4,8 +4,6 @@ namespace App\Http\Controllers\Shop;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
-use App\Services\NotificationService;
-use App\Services\OrderService;
 use App\Services\RazorpayService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,8 +13,6 @@ class RazorpayPaymentController extends Controller
 {
     public function __construct(
         private RazorpayService $razorpay,
-        private OrderService $orders,
-        private NotificationService $notifications,
     ) {}
 
     public function show(Order $order): View|RedirectResponse
@@ -34,6 +30,13 @@ class RazorpayPaymentController extends Controller
         if (! $order->razorpay_order_id) {
             $this->razorpay->createRazorpayOrder($order);
             $order->refresh();
+        }
+
+        // User may have paid but browser callback failed — sync from Razorpay.
+        if ($this->razorpay->syncPaymentStatus($order, 'sync')) {
+            return redirect()
+                ->route('orders.confirmation', $order->fresh())
+                ->with('success', 'Payment received! Your order is confirmed.');
         }
 
         $order->loadCount('items');
@@ -78,9 +81,6 @@ class RazorpayPaymentController extends Controller
                     $validated['razorpay_signature']
                 );
             }
-
-            $this->orders->logStatus($order->fresh(), 'pending', 'Payment Success', 'Razorpay payment verified', 'customer');
-            $this->notifications->notifyOrderEvent($order->fresh(), 'payment_success');
         } catch (\Throwable $e) {
             return redirect()
                 ->route('orders.payment', $order)
