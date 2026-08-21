@@ -124,7 +124,7 @@ class ReportService
 
         $revenue = $this->sumOrderTotals($revenueOrders);
         $orderCount = $orders->count();
-        $paidCount = $orders->where('payment_status', 'paid')->count();
+        $paidCount = $orderCount;
 
         $daily = $revenueOrders
             ->groupBy(fn (Order $o) => $o->created_at->format('Y-m-d'))
@@ -217,6 +217,7 @@ class ReportService
     {
         $itemsQuery = OrderItem::query()
             ->whereHas('order', function (Builder $q) use ($from, $to) {
+                $this->applyPaidOrderScope($q);
                 $this->applyDateRange($q, $from, $to);
                 $q->whereNotIn('status', self::REVENUE_EXCLUDED_STATUSES);
             })
@@ -291,6 +292,7 @@ class ReportService
             ->select('customer_id', 'user_id')
             ->selectRaw('COUNT(*) as order_count')
             ->selectRaw('SUM(COALESCE(grand_total, total, 0)) as total_spend')
+            ->where('payment_status', 'paid')
             ->whereNotIn('status', self::REVENUE_EXCLUDED_STATUSES)
             ->when($from, fn ($q) => $q->where('created_at', '>=', $from))
             ->when($to, fn ($q) => $q->where('created_at', '<=', $to))
@@ -299,11 +301,13 @@ class ReportService
 
         $topCustomers = Customer::query()
             ->withCount(['orders' => function (Builder $q) use ($from, $to) {
+                $this->applyPaidOrderScope($q);
                 $this->applyDateRange($q, $from, $to);
             }])
             ->get()
             ->map(function (Customer $c) use ($from, $to) {
                 $spend = (float) Order::query()
+                    ->paid()
                     ->where(function (Builder $q) use ($c) {
                         $q->where('customer_id', $c->id);
                         if ($c->user_id) {
@@ -365,7 +369,8 @@ class ReportService
     public function couponsReport(?Carbon $from, ?Carbon $to): array
     {
         $usagesQuery = CouponUsage::query()
-            ->with(['coupon:id,code,type,value', 'order:id,order_number,grand_total,total,status,created_at'])
+            ->with(['coupon:id,code,type,value', 'order:id,order_number,grand_total,total,status,payment_status,created_at'])
+            ->whereHas('order', fn (Builder $q) => $q->paid())
             ->when($from, fn ($q) => $q->where('created_at', '>=', $from))
             ->when($to, fn ($q) => $q->where('created_at', '<=', $to));
 
@@ -391,6 +396,7 @@ class ReportService
             ->values();
 
         $ordersWithCoupon = Order::query()
+            ->paid()
             ->whereNotNull('coupon_id')
             ->whereNotIn('status', self::REVENUE_EXCLUDED_STATUSES)
             ->when($from, fn ($q) => $q->where('created_at', '>=', $from))
@@ -431,8 +437,8 @@ class ReportService
                 'method' => $method,
                 'label' => $this->paymentMethodLabel($method),
                 'count' => $group->count(),
-                'paid' => $group->where('payment_status', 'paid')->count(),
-                'pending' => $group->where('payment_status', '!=', 'paid')->count(),
+                'paid' => $group->count(),
+                'pending' => 0,
                 'amount' => $this->sumOrderTotals($group->whereNotIn('status', self::REVENUE_EXCLUDED_STATUSES)),
             ])
             ->sortByDesc('amount')
@@ -458,12 +464,12 @@ class ReportService
 
         return [
             'summary' => [
-                'total_collected' => $this->sumOrderTotals($orders->where('payment_status', 'paid')->whereNotIn('status', self::REVENUE_EXCLUDED_STATUSES)),
-                'pending_collection' => $this->sumOrderTotals($orders->where('payment_status', '!=', 'paid')->whereNotIn('status', self::REVENUE_EXCLUDED_STATUSES)),
+                'total_collected' => $this->sumOrderTotals($orders->whereNotIn('status', self::REVENUE_EXCLUDED_STATUSES)),
+                'pending_collection' => 0,
                 'razorpay_orders' => $razorpayOrders->count(),
-                'razorpay_collected' => $this->sumOrderTotals($razorpayOrders->where('payment_status', 'paid')),
+                'razorpay_collected' => $this->sumOrderTotals($razorpayOrders),
                 'cod_orders' => $codOrders->count(),
-                'cod_pending' => $codOrders->where('payment_status', '!=', 'paid')->count(),
+                'cod_pending' => 0,
             ],
             'by_status' => $byStatus,
             'by_method' => $byMethod,
@@ -538,8 +544,11 @@ class ReportService
 
         if ($from || $to) {
             $shipmentsQuery->whereHas('order', function (Builder $q) use ($from, $to) {
+                $this->applyPaidOrderScope($q);
                 $this->applyDateRange($q, $from, $to);
             });
+        } else {
+            $shipmentsQuery->whereHas('order', fn (Builder $q) => $this->applyPaidOrderScope($q));
         }
 
         $shipments = $shipmentsQuery->latest()->get();
@@ -611,6 +620,7 @@ class ReportService
                 ->count(),
             'products_sold' => (int) OrderItem::query()
                 ->whereHas('order', function (Builder $q) use ($from, $to) {
+                    $this->applyPaidOrderScope($q);
                     $this->applyDateRange($q, $from, $to);
                     $q->whereNotIn('status', self::REVENUE_EXCLUDED_STATUSES);
                 })
@@ -620,10 +630,15 @@ class ReportService
 
     private function ordersInRange(?Carbon $from, ?Carbon $to): Builder
     {
-        $query = Order::query();
+        $query = Order::query()->paid();
         $this->applyDateRange($query, $from, $to);
 
         return $query;
+    }
+
+    private function applyPaidOrderScope(Builder $query): Builder
+    {
+        return $query->paid();
     }
 
     private function applyDateRange(Builder $query, ?Carbon $from, ?Carbon $to): void

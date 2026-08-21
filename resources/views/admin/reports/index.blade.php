@@ -2,7 +2,7 @@
 
 @section('title', 'Reports')
 @section('page-title', 'Reports')
-@section('page-subtitle', 'Business analytics and exportable reports for your store')
+@section('page-subtitle', 'Business analytics and exportable reports · order metrics use paid orders only')
 
 @section('content')
 @include('admin.reports.partials.filters', ['showDateFilter' => true])
